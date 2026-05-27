@@ -6,6 +6,7 @@ import com.tutor.alexis.model.Sesion;
 import com.tutor.alexis.repository.ObjetivoEstudioRepository;
 import com.tutor.alexis.repository.PerfilEstudianteRepository;
 import com.tutor.alexis.repository.SesionRepository;
+import com.tutor.alexis.service.ClaudeService;
 import com.tutor.alexis.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
@@ -25,6 +27,7 @@ public class ReporteController {
     @Autowired private PerfilEstudianteRepository perfilRepository;
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
     @Autowired private EmailService emailService;
+    @Autowired private ClaudeService claudeService;
 
     @GetMapping("/reporte")
     public String reporte(Model model) {
@@ -200,5 +203,46 @@ public class ReporteController {
 
         emailService.enviarReporteSesion(plan.toString(), "Plan de estudios completo de Alexis");
         return "Email enviado";
+    }
+
+    @GetMapping("/enviar-resumen-semanal")
+    @ResponseBody
+    public String enviarResumenSemanal() {
+        List<Sesion> sesiones = sesionRepository
+                .findByFechaInicioAfterOrderByFechaInicioDesc(
+                        LocalDateTime.now().minusDays(7));
+
+        if (sesiones.isEmpty()) return "No hay sesiones esta semana";
+
+        StringBuilder reportes = new StringBuilder();
+        for (Sesion s : sesiones) {
+            if (s.getReporte() != null) {
+                reportes.append(s.getReporte()).append("\n---\n");
+            }
+        }
+
+        if (reportes.length() == 0) return "No hay reportes esta semana";
+
+        String prompt = "Eres el tutor de Alexis. Basándote en estos reportes de la semana, " +
+                "genera un resumen ejecutivo para su mamá con:\n" +
+                "- Qué aprendió esta semana\n" +
+                "- Cómo fue su actitud general\n" +
+                "- Sus logros más importantes\n" +
+                "- Qué necesita reforzar la próxima semana\n" +
+                "- Calificación general del 1 al 10\n" +
+                "- Recomendación para los papás\n\n" +
+                "Reportes:\n" + reportes;
+
+        String resumen = claudeService.enviarConversacionCompleta(
+                "Eres el tutor personal de Alexis Leonardo.",
+                List.of(Map.of("role", "user", "content", prompt))
+        );
+
+        String semana = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern(
+                        "dd 'de' MMMM 'de' yyyy", new java.util.Locale("es", "MX")));
+
+        emailService.enviarResumenSemanal(resumen, semana);
+        return "Resumen enviado a mamá ✅";
     }
 }

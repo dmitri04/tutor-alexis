@@ -104,13 +104,6 @@ public class TutorService {
                 // Recargar sesión actualizada
                 Sesion sesionFinal = sesionRepository.findById(sesionActivaId).orElse(sesion);
 
-                // Enviar email si hay reporte
-                if (sesionFinal.getReporte() != null) {
-                    String fecha = LocalDateTime.now()
-                            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-                    emailService.enviarReporteSesion(sesionFinal.getReporte(), fecha);
-                    resultado.put("emailEnviado", true);
-                }
             });
 
             sesionActivaId = null;

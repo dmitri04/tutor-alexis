@@ -433,6 +433,16 @@
 
         chatContainer.appendChild(div);
         chatContainer.scrollTop = chatContainer.scrollHeight;
+
+        // Cerrar sesión automáticamente al completar las 3 lecciones
+        if (tipo === 'tutor' && textoLimpio.includes('Completaste tus 3 lecciones de hoy')) {
+            setTimeout(async () => {
+                await fetch('/cerrar-sesion', { method: 'POST' });
+                btnEnviar.disabled = true;
+                clearInterval(timerInterval);
+                agregarMensaje('Sesión del día cerrada automáticamente. ¡Hasta mañana! 🌙', 'sistema');
+            }, 3000);
+        }
     }
 
     function mostrarTyping() {
