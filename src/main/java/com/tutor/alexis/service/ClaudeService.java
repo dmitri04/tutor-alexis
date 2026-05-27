@@ -1,6 +1,5 @@
 package com.tutor.alexis.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -20,10 +19,11 @@ public class ClaudeService {
     @Value("${anthropic.model}")
     private String model;
 
-    private final WebClient webClient = WebClient.create();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final WebClient webClient = WebClient.builder()
+        .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024)) // 10MB para imágenes
+        .build();
 
-    public String enviarConversacion(String systemPrompt, List<Map<String, String>> historial) {
+    public String enviarConversacionCompleta(String systemPrompt, List<Map<String, Object>> historial) {
         try {
             Map<String, Object> body = Map.of(
                 "model", model,
@@ -46,7 +46,9 @@ public class ClaudeService {
             return (String) content.get(0).get("text");
 
         } catch (Exception e) {
+            e.printStackTrace(); // agrega esta línea
             return "Error al conectar con el tutor: " + e.getMessage();
         }
     }
 }
+

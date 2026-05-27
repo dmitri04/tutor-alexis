@@ -22,6 +22,7 @@ public class Sesion {
     private String logroDelDia;
     private String areaReforzar;
     private String objetivoSiguiente;
+    @Column(columnDefinition = "TEXT")
     private String reporte;
 
     @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

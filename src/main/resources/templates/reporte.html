@@ -5,148 +5,237 @@
     <title>Reporte — Alexis</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
 
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #f5f7fa;
-            color: #333;
-            padding: 32px;
+        .header {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: white; padding: 24px 32px;
+            display: flex; align-items: center; justify-content: space-between;
         }
+        .header h1 { font-size: 1.4rem; color: #e94560; }
+        .header p { color: #888; font-size: 0.85rem; margin-top: 4px; }
+        .volver { color: #e94560; text-decoration: none; font-size: 0.85rem; }
 
-        h1 { color: #e94560; margin-bottom: 8px; }
-        .subtitle { color: #888; margin-bottom: 32px; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 32px; }
 
-        .grid {
+        /* Stats */
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-bottom: 32px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: white; border-radius: 12px; padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-top: 4px solid #e94560;
+        }
+        .stat-card .label { font-size: 0.75rem; color: #888; text-transform: uppercase; margin-bottom: 8px; }
+        .stat-card .value { font-size: 2rem; font-weight: bold; color: #e94560; }
+        .stat-card.verde { border-top-color: #22c55e; }
+        .stat-card.verde .value { color: #22c55e; }
+        .stat-card.amarillo { border-top-color: #f59e0b; }
+        .stat-card.amarillo .value { color: #f59e0b; }
+        .stat-card.rojo { border-top-color: #ef4444; }
+        .stat-card.rojo .value { color: #ef4444; }
+
+        /* Alerta de atraso */
+        .alerta {
+            background: #fef2f2; border: 2px solid #ef4444;
+            border-radius: 12px; padding: 16px 20px;
+            margin-bottom: 24px; display: flex; align-items: center; gap: 12px;
+        }
+        .alerta h3 { color: #ef4444; font-size: 1rem; }
+        .alerta p { color: #666; font-size: 0.875rem; margin-top: 4px; }
+
+        /* Plan de estudios */
+        .section-title {
+            font-size: 1.1rem; font-weight: bold; color: #333;
+            margin-bottom: 16px; margin-top: 24px;
+            display: flex; align-items: center; gap: 8px;
         }
 
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        .fase {
+            background: white; border-radius: 12px;
+            margin-bottom: 16px; overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
+        .fase-header {
+            background: #1a1a2e; color: white;
+            padding: 12px 20px; font-weight: bold;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .fase-header .progreso-texto { font-size: 0.8rem; color: #888; }
 
-        .card h3 { color: #888; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; }
-        .card .valor { font-size: 2rem; font-weight: bold; color: #e94560; }
+        .objetivo {
+            padding: 14px 20px;
+            border-bottom: 1px solid #f0f2f5;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .objetivo:last-child { border-bottom: none; }
 
+        .objetivo .icono { font-size: 1.2rem; min-width: 24px; }
+        .objetivo .info { flex: 1; }
+        .objetivo .info .nombre { font-weight: 500; color: #333; font-size: 0.9rem; }
+        .objetivo .info .fecha { font-size: 0.78rem; color: #888; margin-top: 2px; }
+        .objetivo .badge-estado {
+            font-size: 0.72rem; padding: 3px 10px; border-radius: 20px; font-weight: bold;
+        }
+        .badge-completado { background: #dcfce7; color: #16a34a; }
+        .badge-progreso { background: #fef9c3; color: #a16207; }
+        .badge-atrasado { background: #fef2f2; color: #dc2626; }
+        .badge-pendiente { background: #f1f5f9; color: #64748b; }
+
+        /* Barra de progreso */
+        .progreso-bar-container { padding: 0 20px 16px; }
+        .progreso-bar-bg { background: #f0f2f5; border-radius: 99px; height: 8px; }
+        .progreso-bar-fill { background: #e94560; border-radius: 99px; height: 8px; transition: width 0.5s; }
+
+        /* Sesiones */
         .sesion-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            background: white; border-radius: 12px; padding: 20px;
+            margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             border-left: 4px solid #e94560;
         }
-
-        .sesion-card h3 { margin-bottom: 12px; color: #333; }
+        .sesion-card .fecha { font-size: 0.8rem; color: #888; margin-bottom: 8px; }
         .sesion-card pre {
-            background: #f5f7fa;
-            padding: 12px;
-            border-radius: 8px;
-            white-space: pre-wrap;
-            font-size: 0.9rem;
-            color: #555;
+            background: #f8fafc; padding: 12px; border-radius: 8px;
+            white-space: pre-wrap; font-size: 0.85rem; color: #555; line-height: 1.6;
         }
+        .sin-dato { color: #aaa; font-style: italic; font-size: 0.875rem; }
 
-        .sin-reporte { color: #aaa; font-style: italic; }
-
+        /* Perfil */
         .perfil-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 32px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            background: white; border-radius: 12px; padding: 20px;
+            margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
-
-        .perfil-card h2 { margin-bottom: 16px; color: #333; }
         .perfil-card pre {
-            white-space: pre-wrap;
-            font-size: 0.9rem;
-            color: #555;
-            line-height: 1.6;
+            white-space: pre-wrap; font-size: 0.875rem; color: #555; line-height: 1.7;
+        }
+        .badge-tag {
+            display: inline-block; background: #e94560; color: white;
+            padding: 3px 12px; border-radius: 20px; font-size: 0.75rem; margin-bottom: 12px;
         }
 
-        .badge {
-            display: inline-block;
-            background: #e94560;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            margin-bottom: 16px;
+        .objetivo .info .subtemas {
+            font-size: 0.78rem;
+            color: #666;
+            margin-top: 4px;
         }
-
-        .volver {
-            display: inline-block;
-            margin-bottom: 24px;
+        .objetivo .info .proposito {
+            font-size: 0.78rem;
             color: #e94560;
-            text-decoration: none;
-            font-weight: bold;
+            margin-top: 2px;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
 
+<div class="header">
+    <div>
+        <h1>📊 Reporte de Alexis</h1>
+        <p>Vista exclusiva para papá — actualizado en tiempo real</p>
+    </div>
     <a href="/" class="volver">← Volver al tutor</a>
+</div>
 
-    <h1>📊 Reporte de Alexis</h1>
-    <p class="subtitle">Vista exclusiva para papá</p>
+<div class="container">
 
-    <!-- Estadísticas generales -->
-    <div class="grid">
-        <div class="card">
-            <h3>Total sesiones</h3>
-            <div class="valor" th:text="${totalSesiones}">0</div>
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="label">Total sesiones</div>
+            <div class="value" th:text="${totalSesiones}">0</div>
         </div>
-        <div class="card">
-            <h3>Esta semana</h3>
-            <div class="valor" th:text="${sesiones.size()}">0</div>
+        <div class="stat-card verde">
+            <div class="label">Esta semana</div>
+            <div class="value" th:text="${sesiones.size()}">0</div>
         </div>
-        <div class="card">
-            <h3>Diagnóstico</h3>
-            <div class="valor" th:text="${perfil != null and perfil.diagnosticoCompletado} ? '✅' : '⏳'">⏳</div>
+        <div class="stat-card">
+            <div class="label">Diagnóstico</div>
+            <div class="value" th:text="${perfil != null and perfil.diagnosticoCompletado} ? '✅' : '⏳'">⏳</div>
+        </div>
+        <div class="stat-card amarillo">
+            <div class="label">Días hasta prepa</div>
+            <div class="value" th:text="${diasRestantes}">--</div>
         </div>
     </div>
 
-    <!-- Perfil del estudiante -->
-    <div class="perfil-card" th:if="${perfil != null and perfil.diagnosticoCompletado}">
-        <h2>🧠 Perfil de Alexis</h2>
-        <span class="badge">Generado en diagnóstico inicial</span>
-        <pre th:text="${perfil.perfilCompleto}"></pre>
+    <!-- Alerta de atraso si hay objetivos vencidos -->
+    <div class="alerta" th:if="${objetivosAtrasados > 0}">
+        <span style="font-size:1.5rem">🚨</span>
+        <div>
+            <h3>Alexis tiene <span th:text="${objetivosAtrasados}">0</span> objetivo(s) atrasado(s)</h3>
+            <p>Considera asignarle sesión de fin de semana para ponerse al corriente.</p>
+        </div>
+    </div>
 
-        <br/>
-        <h2>📅 Plan de Estudios</h2>
-        <pre th:text="${perfil.planEstudios}"></pre>
+    <!-- Plan de estudios con semáforo -->
+    <div th:if="${perfil != null and perfil.planEstudios != null}">
+        <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
+
+        <div th:each="fase, faseIdx : ${fases}">
+            <div class="fase">
+                <div class="fase-header">
+                    <span th:text="${fase.nombre}">Fase</span>
+                    <span class="progreso-texto" th:text="${fase.completados} + '/' + ${fase.total} + ' completados'">0/0</span>
+                </div>
+                <div class="progreso-bar-container">
+                    <div class="progreso-bar-bg">
+                        <div class="progreso-bar-fill"
+                             th:style="'width:' + ${fase.porcentaje} + '%'"></div>
+                    </div>
+                </div>
+                <div th:each="obj : ${fase.objetivos}">
+                    <div class="objetivo">
+                        <span class="icono" th:text="${obj.icono}">⏳</span>
+                        <div class="info">
+                            <div class="nombre" th:text="${obj.nombre}">Tema</div>
+                            <div class="fecha" th:text="${obj.fechaTexto}">Fecha</div>
+                            <div class="subtemas" th:if="${obj.subtemas != null}"
+                                 th:text="'📌 ' + ${obj.subtemas}"></div>
+                            <div class="proposito" th:if="${obj.proposito != null}"
+                                 th:text="'🎯 ' + ${obj.proposito}"></div>
+                        </div>
+                        <span class="badge-estado"
+                              th:classappend="${obj.estado == 'completado'} ? 'badge-completado' :
+                                             (${obj.estado == 'progreso'} ? 'badge-progreso' :
+                                             (${obj.estado == 'atrasado'} ? 'badge-atrasado' : 'badge-pendiente'))"
+                              th:text="${obj.etiqueta}">Estado</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Perfil -->
+    <div th:if="${perfil != null and perfil.diagnosticoCompletado}">
+        <div class="section-title">🧠 Perfil de Alexis</div>
+        <div class="perfil-card">
+            <span class="badge-tag">Generado en diagnóstico inicial</span>
+            <pre th:text="${perfil.perfilCompleto}"></pre>
+        </div>
     </div>
 
     <!-- Sesión de hoy -->
-    <h2 style="margin-bottom:16px;">📋 Sesión de hoy</h2>
+    <div class="section-title">📋 Sesión de hoy</div>
     <div class="sesion-card" th:if="${sesionHoy != null}">
-        <h3 th:text="${sesionHoy.fechaInicio}">Fecha</h3>
-        <div th:if="${sesionHoy.reporte != null}">
-            <pre th:text="${sesionHoy.reporte}"></pre>
-        </div>
-        <p class="sin-reporte" th:if="${sesionHoy.reporte == null}">
-            La sesión está en curso o no generó reporte aún.
-        </p>
+        <div class="fecha" th:text="${sesionHoy.fechaInicio}"></div>
+        <pre th:if="${sesionHoy.reporte != null}" th:text="${sesionHoy.reporte}"></pre>
+        <p class="sin-dato" th:if="${sesionHoy.reporte == null}">Sesión en curso o sin reporte aún.</p>
     </div>
-    <p class="sin-reporte" th:if="${sesionHoy == null}">No hubo sesión hoy.</p>
+    <p class="sin-dato" th:if="${sesionHoy == null}">No hubo sesión hoy.</p>
 
-    <!-- Historial de la semana -->
-    <h2 style="margin: 24px 0 16px;">📆 Últimos 7 días</h2>
+    <!-- Historial -->
+    <div class="section-title">📆 Últimos 7 días</div>
     <div th:each="sesion : ${sesiones}">
         <div class="sesion-card">
-            <h3 th:text="${sesion.fechaInicio}">Fecha</h3>
-            <div th:if="${sesion.reporte != null}">
-                <pre th:text="${sesion.reporte}"></pre>
-            </div>
-            <p class="sin-reporte" th:if="${sesion.reporte == null}">Sin reporte en esta sesión.</p>
+            <div class="fecha" th:text="${sesion.fechaInicio}"></div>
+            <pre th:if="${sesion.reporte != null}" th:text="${sesion.reporte}"></pre>
+            <p class="sin-dato" th:if="${sesion.reporte == null}">Sin reporte en esta sesión.</p>
         </div>
     </div>
 
+</div>
 </body>
 </html>

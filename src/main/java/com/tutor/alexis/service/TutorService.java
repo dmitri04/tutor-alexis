@@ -2,19 +2,20 @@ package com.tutor.alexis.service;
 
 import com.tutor.alexis.config.SystemPromptConfig;
 import com.tutor.alexis.model.Mensaje;
+import com.tutor.alexis.model.ObjetivoEstudio;
 import com.tutor.alexis.model.PerfilEstudiante;
 import com.tutor.alexis.model.Sesion;
 import com.tutor.alexis.repository.MensajeRepository;
+import com.tutor.alexis.repository.ObjetivoEstudioRepository;
 import com.tutor.alexis.repository.PerfilEstudianteRepository;
 import com.tutor.alexis.repository.SesionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 
 @Service
 public class TutorService {
@@ -24,34 +25,49 @@ public class TutorService {
     @Autowired private SesionRepository sesionRepository;
     @Autowired private MensajeRepository mensajeRepository;
     @Autowired private PerfilEstudianteRepository perfilRepository;
+    @Autowired private EmailService emailService;
+    @Autowired private ObjetivoEstudioRepository objetivoRepository;
 
-    // Sesión activa en memoria
     private Long sesionActivaId = null;
-    private List<Map<String, String>> historialActivo = new ArrayList<>();
+    private List<Map<String, Object>> historialActivo = new ArrayList<>();
+    private LocalDateTime inicioSesion = null;
 
     public String procesarMensaje(String mensajeUsuario) {
-        // Iniciar sesión si no hay una activa
+        return procesarMensajeConImagen(mensajeUsuario, null, null);
+    }
+
+    public String procesarMensajeConImagen(String mensajeUsuario, String imagenBase64, String mediaType) {
         if (sesionActivaId == null) {
             iniciarNuevaSesion();
         }
 
-        // Guardar mensaje del usuario
+        // Construir contenido del mensaje
+        Object contenidoMensaje;
+        if (imagenBase64 != null) {
+            contenidoMensaje = List.of(
+                Map.of("type", "image", "source", Map.of(
+                    "type", "base64",
+                    "media_type", mediaType,
+                    "data", imagenBase64
+                )),
+                Map.of("type", "text", "text", mensajeUsuario)
+            );
+        } else {
+            contenidoMensaje = mensajeUsuario;
+        }
+
         guardarMensaje(sesionActivaId, "user", mensajeUsuario);
-        historialActivo.add(Map.of("role", "user", "content", mensajeUsuario));
+        historialActivo.add(Map.of("role", "user", "content", contenidoMensaje));
 
-        // Obtener system prompt
         String systemPrompt = obtenerSystemPrompt();
+        String respuesta = claudeService.enviarConversacionCompleta(systemPrompt, historialActivo);
 
-        // Llamar a Claude
-        String respuesta = claudeService.enviarConversacion(systemPrompt, historialActivo);
-
-        // Guardar respuesta
         guardarMensaje(sesionActivaId, "assistant", respuesta);
         historialActivo.add(Map.of("role", "assistant", "content", respuesta));
 
-        // Procesar bloques especiales en la respuesta
         procesarBloquesDiagnostico(respuesta);
         procesarBloqueReporte(respuesta);
+        procesarBloqueExamen(respuesta);
 
         return respuesta;
     }
@@ -61,19 +77,48 @@ public class TutorService {
         sesion.setFechaInicio(LocalDateTime.now());
         sesion = sesionRepository.save(sesion);
         sesionActivaId = sesion.getId();
+        inicioSesion = LocalDateTime.now();
         historialActivo = new ArrayList<>();
     }
 
-    public void cerrarSesion() {
+    public Map<String, Object> cerrarSesion() {
+        Map<String, Object> resultado = new HashMap<>();
         if (sesionActivaId != null) {
             Optional<Sesion> sesionOpt = sesionRepository.findById(sesionActivaId);
             sesionOpt.ifPresent(sesion -> {
                 sesion.setFechaFin(LocalDateTime.now());
                 sesionRepository.save(sesion);
+
+                // Si no hay reporte, pedirle al tutor que genere uno
+                if (sesion.getReporte() == null && !historialActivo.isEmpty()) {
+                    String reporteAuto = claudeService.enviarConversacionCompleta(
+                            obtenerSystemPrompt(),
+                            new ArrayList<>(historialActivo) {{
+                                add(Map.of("role", "user", "content",
+                                        "La sesión de estudio terminó. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
+                            }}
+                    );
+                    procesarBloqueReporte(reporteAuto);
+                }
+
+                // Recargar sesión actualizada
+                Sesion sesionFinal = sesionRepository.findById(sesionActivaId).orElse(sesion);
+
+                // Enviar email si hay reporte
+                if (sesionFinal.getReporte() != null) {
+                    String fecha = LocalDateTime.now()
+                            .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+                    emailService.enviarReporteSesion(sesionFinal.getReporte(), fecha);
+                    resultado.put("emailEnviado", true);
+                }
             });
+
             sesionActivaId = null;
             historialActivo = new ArrayList<>();
+            inicioSesion = null;
         }
+        resultado.put("status", "ok");
+        return resultado;
     }
 
     private String obtenerSystemPrompt() {
@@ -91,21 +136,52 @@ public class TutorService {
     private void procesarBloquesDiagnostico(String respuesta) {
         if (respuesta.contains("PERFIL_ALEXIS_START") && respuesta.contains("PERFIL_ALEXIS_END")) {
             String perfil = extraerBloque(respuesta, "PERFIL_ALEXIS_START", "PERFIL_ALEXIS_END");
-            String plan = "";
-            if (respuesta.contains("PLAN_ESTUDIOS_START")) {
-                plan = extraerBloque(respuesta, "PLAN_ESTUDIOS_START", "PLAN_ESTUDIOS_END");
-            }
 
             PerfilEstudiante estudiante = perfilRepository.findFirstByOrderByIdAsc()
-                .orElse(new PerfilEstudiante());
+                    .orElse(new PerfilEstudiante());
             estudiante.setNombre("Alexis Leonardo");
             estudiante.setEdad(16);
             estudiante.setPerfilCompleto(perfil);
-            estudiante.setPlanEstudios(plan);
             estudiante.setDiagnosticoCompletado(true);
             estudiante.setFechaDiagnostico(LocalDateTime.now());
             estudiante.setFechaActualizacion(LocalDateTime.now());
             perfilRepository.save(estudiante);
+        }
+
+        if (respuesta.contains("PLAN_JSON_START") && respuesta.contains("PLAN_JSON_END")) {
+            String json = extraerBloque(respuesta, "PLAN_JSON_START", "PLAN_JSON_END");
+            parsearYGuardarPlan(json);
+        }
+    }
+
+    private void parsearYGuardarPlan(String json) {
+        try {
+            objetivoRepository.deleteAll(); // limpiar plan anterior
+
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(json);
+            com.fasterxml.jackson.databind.JsonNode fases = root.get("fases");
+
+            for (com.fasterxml.jackson.databind.JsonNode fase : fases) {
+                String nombreFase = fase.get("fase").asText();
+                com.fasterxml.jackson.databind.JsonNode objetivos = fase.get("objetivos");
+
+                for (com.fasterxml.jackson.databind.JsonNode obj : objetivos) {
+                    ObjetivoEstudio objetivo = new ObjetivoEstudio();
+                    objetivo.setFase(nombreFase);
+                    objetivo.setNumeroSemana(obj.get("numeroSemana").asInt());
+                    objetivo.setNombre(obj.get("nombre").asText());
+                    objetivo.setSubtemas(obj.get("subtemas").asText());
+                    objetivo.setProposito(obj.get("proposito").asText());
+                    objetivo.setFechaInicio(LocalDate.parse(obj.get("fechaInicio").asText()));
+                    objetivo.setFechaFin(LocalDate.parse(obj.get("fechaFin").asText()));
+                    objetivo.setEstado("pendiente");
+                    objetivoRepository.save(objetivo);
+                }
+            }
+            System.out.println("Plan guardado: " + objetivoRepository.count() + " objetivos");
+        } catch (Exception e) {
+            System.err.println("Error parseando plan: " + e.getMessage());
         }
     }
 
@@ -118,6 +194,24 @@ public class TutorService {
                 sesionRepository.save(sesion);
             });
         }
+    }
+
+    private void procesarBloqueExamen(String respuesta) {
+        if (respuesta.contains("REPORTE_EXAMEN_START")) {
+            String reporte = extraerBloque(respuesta, "REPORTE_EXAMEN_START", "REPORTE_EXAMEN_END");
+            String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            String calificacion = extraerCalificacion(reporte);
+            emailService.enviarResultadoExamen(reporte, fecha, calificacion);
+        }
+    }
+
+    private String extraerCalificacion(String reporte) {
+        for (String linea : reporte.split("\n")) {
+            if (linea.startsWith("Calificación:")) {
+                return linea.replace("Calificación:", "").trim();
+            }
+        }
+        return "?/10";
     }
 
     private String extraerBloque(String texto, String inicio, String fin) {
@@ -144,6 +238,15 @@ public class TutorService {
         return perfilRepository.findFirstByOrderByIdAsc()
             .map(PerfilEstudiante::getDiagnosticoCompletado)
             .orElse(false);
+    }
+
+    public long getTiempoSesionMinutos() {
+        if (inicioSesion == null) return 0;
+        return java.time.Duration.between(inicioSesion, LocalDateTime.now()).toMinutes();
+    }
+
+    public long getTotalSesiones() {
+        return sesionRepository.count();
     }
 
     public Long getSesionActivaId() {
