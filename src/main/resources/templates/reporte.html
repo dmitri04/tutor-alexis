@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte — Alexis</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            padding: 32px;
+        }
+
+        h1 { color: #e94560; margin-bottom: 8px; }
+        .subtitle { color: #888; margin-bottom: 32px; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h3 { color: #888; font-size: 0.85rem; margin-bottom: 8px; text-transform: uppercase; }
+        .card .valor { font-size: 2rem; font-weight: bold; color: #e94560; }
+
+        .sesion-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border-left: 4px solid #e94560;
+        }
+
+        .sesion-card h3 { margin-bottom: 12px; color: #333; }
+        .sesion-card pre {
+            background: #f5f7fa;
+            padding: 12px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .sin-reporte { color: #aaa; font-style: italic; }
+
+        .perfil-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .perfil-card h2 { margin-bottom: 16px; color: #333; }
+        .perfil-card pre {
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #e94560;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 16px;
+        }
+
+        .volver {
+            display: inline-block;
+            margin-bottom: 24px;
+            color: #e94560;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <a href="/" class="volver">← Volver al tutor</a>
+
+    <h1>📊 Reporte de Alexis</h1>
+    <p class="subtitle">Vista exclusiva para papá</p>
+
+    <!-- Estadísticas generales -->
+    <div class="grid">
+        <div class="card">
+            <h3>Total sesiones</h3>
+            <div class="valor" th:text="${totalSesiones}">0</div>
+        </div>
+        <div class="card">
+            <h3>Esta semana</h3>
+            <div class="valor" th:text="${sesiones.size()}">0</div>
+        </div>
+        <div class="card">
+            <h3>Diagnóstico</h3>
+            <div class="valor" th:text="${perfil != null and perfil.diagnosticoCompletado} ? '✅' : '⏳'">⏳</div>
+        </div>
+    </div>
+
+    <!-- Perfil del estudiante -->
+    <div class="perfil-card" th:if="${perfil != null and perfil.diagnosticoCompletado}">
+        <h2>🧠 Perfil de Alexis</h2>
+        <span class="badge">Generado en diagnóstico inicial</span>
+        <pre th:text="${perfil.perfilCompleto}"></pre>
+
+        <br/>
+        <h2>📅 Plan de Estudios</h2>
+        <pre th:text="${perfil.planEstudios}"></pre>
+    </div>
+
+    <!-- Sesión de hoy -->
+    <h2 style="margin-bottom:16px;">📋 Sesión de hoy</h2>
+    <div class="sesion-card" th:if="${sesionHoy != null}">
+        <h3 th:text="${sesionHoy.fechaInicio}">Fecha</h3>
+        <div th:if="${sesionHoy.reporte != null}">
+            <pre th:text="${sesionHoy.reporte}"></pre>
+        </div>
+        <p class="sin-reporte" th:if="${sesionHoy.reporte == null}">
+            La sesión está en curso o no generó reporte aún.
+        </p>
+    </div>
+    <p class="sin-reporte" th:if="${sesionHoy == null}">No hubo sesión hoy.</p>
+
+    <!-- Historial de la semana -->
+    <h2 style="margin: 24px 0 16px;">📆 Últimos 7 días</h2>
+    <div th:each="sesion : ${sesiones}">
+        <div class="sesion-card">
+            <h3 th:text="${sesion.fechaInicio}">Fecha</h3>
+            <div th:if="${sesion.reporte != null}">
+                <pre th:text="${sesion.reporte}"></pre>
+            </div>
+            <p class="sin-reporte" th:if="${sesion.reporte == null}">Sin reporte en esta sesión.</p>
+        </div>
+    </div>
+
+</body>
+</html>
