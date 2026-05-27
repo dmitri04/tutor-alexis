@@ -27,7 +27,7 @@ public class ClaudeService {
         try {
             Map<String, Object> body = Map.of(
                 "model", model,
-                "max_tokens", 2048,
+                "max_tokens", 4096,
                 "system", systemPrompt,
                 "messages", historial
             );
@@ -43,6 +43,10 @@ public class ClaudeService {
                 .block();
 
             List<Map> content = (List<Map>) response.get("content");
+            if (content == null || content.isEmpty()) {
+                System.err.println("Respuesta vacía de Claude. Response completo: " + response);
+                return "Error: respuesta vacía del tutor.";
+            }
             return (String) content.get(0).get("text");
 
         } catch (Exception e) {

@@ -171,8 +171,8 @@
     </div>
 
     <!-- Plan de estudios con semáforo -->
-    <div th:if="${perfil != null and perfil.planEstudios != null}">
-        <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
+    <div th:if="${fases != null and not #lists.isEmpty(fases)}">
+    <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
 
         <div th:each="fase, faseIdx : ${fases}">
             <div class="fase">

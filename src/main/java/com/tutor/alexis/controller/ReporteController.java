@@ -6,6 +6,7 @@ import com.tutor.alexis.model.Sesion;
 import com.tutor.alexis.repository.ObjetivoEstudioRepository;
 import com.tutor.alexis.repository.PerfilEstudianteRepository;
 import com.tutor.alexis.repository.SesionRepository;
+import com.tutor.alexis.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -23,6 +24,7 @@ public class ReporteController {
     @Autowired private SesionRepository sesionRepository;
     @Autowired private PerfilEstudianteRepository perfilRepository;
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
+    @Autowired private EmailService emailService;
 
     @GetMapping("/reporte")
     public String reporte(Model model) {
@@ -34,7 +36,7 @@ public class ReporteController {
                 .stream().findFirst();
         Optional<PerfilEstudiante> perfil = perfilRepository.findFirstByOrderByIdAsc();
 
-        long diasRestantes = ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.of(2026, 8, 15));
+        long diasRestantes = ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.of(2026, 8, 21));
 
         // Construir fases dinámicas desde BD
         List<Map<String, Object>> fases = new ArrayList<>();
@@ -115,6 +117,10 @@ public class ReporteController {
         model.addAttribute("fases", fases);
         model.addAttribute("objetivosAtrasados", objetivosAtrasados);
 
+
+        System.out.println("Objetivos en BD: " + objetivoRepository.count());
+        System.out.println("Fases construidas: " + fases.size());
+
         return "reporte";
     }
 
@@ -170,5 +176,29 @@ public class ReporteController {
             objetivoRepository.save(obj);
         }
         return "Objetivos de prueba creados: " + objetivoRepository.count();
+    }
+
+    @GetMapping("/enviar-plan")
+    @ResponseBody
+    public String enviarPlan() {
+        List<ObjetivoEstudio> objetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
+        if (objetivos.isEmpty()) return "No hay plan generado";
+
+        StringBuilder plan = new StringBuilder();
+        String faseActual = "";
+        for (ObjetivoEstudio obj : objetivos) {
+            if (!obj.getFase().equals(faseActual)) {
+                faseActual = obj.getFase();
+                plan.append("\n").append(faseActual).append("\n");
+            }
+            plan.append("\nSemana ").append(obj.getNumeroSemana())
+                    .append(" — ").append(obj.getNombre()).append("\n")
+                    .append("📌 ").append(obj.getSubtemas()).append("\n")
+                    .append("🎯 ").append(obj.getProposito()).append("\n")
+                    .append("📅 ").append(obj.getFechaInicio()).append(" al ").append(obj.getFechaFin()).append("\n");
+        }
+
+        emailService.enviarReporteSesion(plan.toString(), "Plan de estudios completo de Alexis");
+        return "Email enviado";
     }
 }

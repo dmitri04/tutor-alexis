@@ -27,20 +27,22 @@ public class ChatController {
     @ResponseBody
     public Map<String, Object> enviarMensaje(
             @RequestParam("mensaje") String mensaje,
-            @RequestParam(value = "imagen", required = false) MultipartFile imagen) {
+            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
+            @RequestParam(value = "tiempoMinutos", defaultValue = "0") long tiempoMinutos) {
 
         try {
+            String mensajeConTiempo = "[Tiempo en sesión: " + tiempoMinutos + " min] " + mensaje;
             String respuesta;
             if (imagen != null && !imagen.isEmpty()) {
                 String base64 = Base64.getEncoder().encodeToString(imagen.getBytes());
                 String mediaType = imagen.getContentType();
-                respuesta = tutorService.procesarMensajeConImagen(mensaje, base64, mediaType);
+                respuesta = tutorService.procesarMensajeConImagen(mensajeConTiempo, base64, mediaType);
             } else {
-                respuesta = tutorService.procesarMensaje(mensaje);
+                respuesta = tutorService.procesarMensaje(mensajeConTiempo);
             }
             return Map.of(
-                "respuesta", respuesta,
-                "tiempoSesion", tutorService.getTiempoSesionMinutos()
+                    "respuesta", respuesta,
+                    "tiempoSesion", tutorService.getTiempoSesionMinutos()
             );
         } catch (Exception e) {
             return Map.of("respuesta", "Error: " + e.getMessage(), "tiempoSesion", 0);

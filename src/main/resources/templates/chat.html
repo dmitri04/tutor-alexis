@@ -462,6 +462,8 @@
         mostrarTyping();
 
         const formData = new FormData();
+        formData.append('tiempoMinutos', segundosSesion / 60 | 0);
+
         formData.append('mensaje', texto || 'Analiza este ejercicio y ayúdame a resolverlo.');
         if (imagenSeleccionada) {
             formData.append('imagen', imagenSeleccionada);
