@@ -122,15 +122,25 @@ public class TutorService {
     }
 
     private String obtenerSystemPrompt() {
+        // Contar lecciones de hoy
+        long leccionesHoy = sesionRepository
+                .findByFechaInicioAfterOrderByFechaInicioDesc(
+                        LocalDateTime.now().withHour(0).withMinute(0))
+                .stream()
+                .filter(s -> s.getReporte() != null)
+                .count();
+
+        String contextoHoy = "Lecciones completadas hoy: " + leccionesHoy + " de 3.\n";
+
         Optional<PerfilEstudiante> perfilOpt = perfilRepository.findFirstByOrderByIdAsc();
         if (perfilOpt.isPresent() && perfilOpt.get().getDiagnosticoCompletado()) {
             PerfilEstudiante perfil = perfilOpt.get();
             if (perfil.getSystemPromptPersonalizado() != null) {
-                return perfil.getSystemPromptPersonalizado();
+                return contextoHoy + perfil.getSystemPromptPersonalizado();
             }
-            return systemPromptConfig.getPromptConPerfil(perfil.getPerfilCompleto());
+            return contextoHoy + systemPromptConfig.getPromptConPerfil(perfil.getPerfilCompleto());
         }
-        return systemPromptConfig.getPromptBase();
+        return contextoHoy + systemPromptConfig.getPromptBase();
     }
 
     private void procesarBloquesDiagnostico(String respuesta) {
