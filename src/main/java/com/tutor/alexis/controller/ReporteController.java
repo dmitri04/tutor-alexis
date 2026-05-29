@@ -3,6 +3,8 @@ package com.tutor.alexis.controller;
 import com.tutor.alexis.model.ObjetivoEstudio;
 import com.tutor.alexis.model.PerfilEstudiante;
 import com.tutor.alexis.model.Sesion;
+import com.tutor.alexis.model.LeccionCompletada;
+import com.tutor.alexis.repository.LeccionCompletadaRepository;
 import com.tutor.alexis.repository.ObjetivoEstudioRepository;
 import com.tutor.alexis.repository.PerfilEstudianteRepository;
 import com.tutor.alexis.repository.SesionRepository;
@@ -29,6 +31,7 @@ public class ReporteController {
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
     @Autowired private ClaudeService claudeService;
     @Autowired private EmailService emailService;
+    @Autowired private LeccionCompletadaRepository leccionRepository;
 
     @GetMapping("/reporte")
     public String reporte(Model model) {
@@ -123,6 +126,7 @@ public class ReporteController {
                     objUI.put("icono", icono);
                     objUI.put("etiqueta", etiqueta);
                     objUI.put("fechaTexto", "Semana del " + obj.getFechaInicio() + " al " + obj.getFechaFin());
+                    objUI.put("numeroSemana", obj.getNumeroSemana());
                     objetivosUI.add(objUI);
                 }
                 int porcentaje = entry.getValue().isEmpty() ? 0 :
@@ -149,6 +153,17 @@ public class ReporteController {
         model.addAttribute("ultimaActividad", ultimaActividad);
         model.addAttribute("temaActual", temaActual);
         model.addAttribute("promedioComprension", String.format("%.1f", promedioComprension));
+
+        // Lecciones por semana para el dashboard detallado
+        Map<Integer, List<LeccionCompletada>> leccionesPorSemana = new HashMap<>();
+        List<LeccionCompletada> todasLecciones = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc();
+        for (LeccionCompletada lec : todasLecciones) {
+            if (lec.getNumeroSemana() != null && lec.getNumeroSemana() > 0) {
+                leccionesPorSemana.computeIfAbsent(lec.getNumeroSemana(), k -> new ArrayList<>()).add(lec);
+            }
+        }
+
+        model.addAttribute("leccionesPorSemana", leccionesPorSemana);
 
         return "reporte";
     }

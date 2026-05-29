@@ -18,10 +18,9 @@
 
         .container { max-width: 1100px; margin: 0 auto; padding: 24px 32px; }
 
-        /* Stats */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 16px; margin-bottom: 24px;
         }
         .stat-card {
@@ -38,7 +37,15 @@
         .stat-card.rojo { border-top-color: #ef4444; }
         .stat-card.rojo .value { color: #ef4444; }
 
-        /* Alerta de atraso */
+        .tema-card {
+            background: white; border-radius: 12px; padding: 20px;
+            margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 4px solid #e94560;
+        }
+        .tema-card h2 { font-size: 1rem; margin-bottom: 8px; color: #333; }
+        .tema-card p { color: #555; font-size: 0.95rem; }
+        .tema-card .meta { color: #888; font-size: 0.8rem; margin-top: 4px; }
+
         .alerta {
             background: #fef2f2; border: 2px solid #ef4444;
             border-radius: 12px; padding: 16px 20px;
@@ -47,7 +54,6 @@
         .alerta h3 { color: #ef4444; font-size: 1rem; }
         .alerta p { color: #666; font-size: 0.875rem; margin-top: 4px; }
 
-        /* Plan de estudios */
         .section-title {
             font-size: 1.1rem; font-weight: bold; color: #333;
             margin-bottom: 16px; margin-top: 24px;
@@ -66,31 +72,53 @@
         }
         .fase-header .progreso-texto { font-size: 0.8rem; color: #888; }
 
+        .progreso-bar-container { padding: 0 20px 16px; }
+        .progreso-bar-bg { background: #f0f2f5; border-radius: 99px; height: 8px; }
+        .progreso-bar-fill { background: #e94560; border-radius: 99px; height: 8px; transition: width 0.5s; }
+
         .objetivo {
             padding: 14px 20px;
             border-bottom: 1px solid #f0f2f5;
-            display: flex; align-items: center; gap: 12px;
         }
         .objetivo:last-child { border-bottom: none; }
-
-        .objetivo .icono { font-size: 1.2rem; min-width: 24px; }
+        .objetivo-header {
+            display: flex; align-items: flex-start; gap: 12px;
+        }
+        .objetivo .icono { font-size: 1.2rem; min-width: 24px; margin-top: 2px; }
         .objetivo .info { flex: 1; }
         .objetivo .info .nombre { font-weight: 500; color: #333; font-size: 0.9rem; }
         .objetivo .info .fecha { font-size: 0.78rem; color: #888; margin-top: 2px; }
-        .objetivo .badge-estado {
+        .objetivo .info .subtemas { font-size: 0.78rem; color: #666; margin-top: 4px; }
+        .objetivo .info .proposito { font-size: 0.78rem; color: #e94560; margin-top: 2px; font-style: italic; }
+        .badge-estado {
             font-size: 0.72rem; padding: 3px 10px; border-radius: 20px; font-weight: bold;
+            white-space: nowrap;
         }
         .badge-completado { background: #dcfce7; color: #16a34a; }
         .badge-progreso { background: #fef9c3; color: #a16207; }
         .badge-atrasado { background: #fef2f2; color: #dc2626; }
         .badge-pendiente { background: #f1f5f9; color: #64748b; }
 
-        /* Barra de progreso */
-        .progreso-bar-container { padding: 0 20px 16px; }
-        .progreso-bar-bg { background: #f0f2f5; border-radius: 99px; height: 8px; }
-        .progreso-bar-fill { background: #e94560; border-radius: 99px; height: 8px; transition: width 0.5s; }
+        /* Lecciones dentro de objetivo */
+        .lecciones-container {
+            margin-top: 10px;
+            margin-left: 36px;
+            border-left: 2px solid #e94560;
+            padding-left: 12px;
+        }
+        .leccion-item {
+            display: flex; gap: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f2f5;
+        }
+        .leccion-item:last-child { border-bottom: none; }
+        .leccion-item.pendiente { opacity: 0.5; }
+        .leccion-icono { font-size: 0.9rem; min-width: 20px; }
+        .leccion-info { display: flex; flex-direction: column; gap: 2px; }
+        .leccion-titulo { font-size: 0.82rem; font-weight: 500; color: #333; }
+        .leccion-meta { font-size: 0.75rem; color: #888; }
+        .leccion-logro { font-size: 0.75rem; color: #555; font-style: italic; }
 
-        /* Sesiones */
         .sesion-card {
             background: white; border-radius: 12px; padding: 20px;
             margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
@@ -103,29 +131,14 @@
         }
         .sin-dato { color: #aaa; font-style: italic; font-size: 0.875rem; }
 
-        /* Perfil */
         .perfil-card {
             background: white; border-radius: 12px; padding: 20px;
             margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
         }
-        .perfil-card pre {
-            white-space: pre-wrap; font-size: 0.875rem; color: #555; line-height: 1.7;
-        }
+        .perfil-card p { font-size: 0.875rem; color: #555; line-height: 1.7; }
         .badge-tag {
             display: inline-block; background: #e94560; color: white;
             padding: 3px 12px; border-radius: 20px; font-size: 0.75rem; margin-bottom: 12px;
-        }
-
-        .objetivo .info .subtemas {
-            font-size: 0.78rem;
-            color: #666;
-            margin-top: 4px;
-        }
-        .objetivo .info .proposito {
-            font-size: 0.78rem;
-            color: #e94560;
-            margin-top: 2px;
-            font-style: italic;
         }
     </style>
 </head>
@@ -141,6 +154,7 @@
 
 <div class="container">
 
+    <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="label">Total sesiones</div>
@@ -169,14 +183,13 @@
     </div>
 
     <!-- Tema actual -->
-    <div class="perfil-card" style="margin-bottom:16px; border-left: 4px solid #e94560;">
-        <h2 style="margin-bottom:8px;">📖 Tema actual</h2>
-        <p style="color:#555; font-size:0.95rem;" th:text="${temaActual}">Sin sesiones aún</p>
-        <p style="color:#888; font-size:0.8rem; margin-top:4px;"
-           th:text="'Última actividad: hace ' + ${ultimaActividad}"></p>
+    <div class="tema-card">
+        <h2>📖 Tema actual</h2>
+        <p th:text="${temaActual}">Sin sesiones aún</p>
+        <p class="meta" th:text="'Última actividad: hace ' + ${ultimaActividad}"></p>
     </div>
 
-    <!-- Alerta de atraso si hay objetivos vencidos -->
+    <!-- Alerta de atraso -->
     <div class="alerta" th:if="${objetivosAtrasados > 0}">
         <span style="font-size:1.5rem">🚨</span>
         <div>
@@ -185,11 +198,10 @@
         </div>
     </div>
 
-    <!-- Plan de estudios con semáforo -->
+    <!-- Plan de estudios con semáforo y lecciones -->
     <div th:if="${fases != null and not #lists.isEmpty(fases)}">
-    <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
-
-        <div th:each="fase, faseIdx : ${fases}">
+        <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
+        <div th:each="fase : ${fases}">
             <div class="fase">
                 <div class="fase-header">
                     <span th:text="${fase.nombre}">Fase</span>
@@ -197,26 +209,55 @@
                 </div>
                 <div class="progreso-bar-container">
                     <div class="progreso-bar-bg">
-                        <div class="progreso-bar-fill"
-                             th:style="'width:' + ${fase.porcentaje} + '%'"></div>
+                        <div class="progreso-bar-fill" th:style="'width:' + ${fase.porcentaje} + '%'"></div>
                     </div>
                 </div>
                 <div th:each="obj : ${fase.objetivos}">
                     <div class="objetivo">
-                        <span class="icono" th:text="${obj.icono}">⏳</span>
-                        <div class="info">
-                            <div class="nombre" th:text="${obj.nombre}">Tema</div>
-                            <div class="fecha" th:text="${obj.fechaTexto}">Fecha</div>
-                            <div class="subtemas" th:if="${obj.subtemas != null}"
-                                 th:text="'📌 ' + ${obj.subtemas}"></div>
-                            <div class="proposito" th:if="${obj.proposito != null}"
-                                 th:text="'🎯 ' + ${obj.proposito}"></div>
+                        <div class="objetivo-header">
+                            <span class="icono" th:text="${obj.icono}">⏳</span>
+                            <div class="info">
+                                <div class="nombre" th:text="${obj.nombre}">Tema</div>
+                                <div class="fecha" th:text="${obj.fechaTexto}">Fecha</div>
+                                <div class="subtemas" th:if="${obj.subtemas != null}"
+                                     th:text="'📌 ' + ${obj.subtemas}"></div>
+                                <div class="proposito" th:if="${obj.proposito != null}"
+                                     th:text="'🎯 ' + ${obj.proposito}"></div>
+                            </div>
+                            <span class="badge-estado"
+                                  th:classappend="${obj.estado == 'completado'} ? 'badge-completado' :
+                                                 (${obj.estado == 'progreso'} ? 'badge-progreso' :
+                                                 (${obj.estado == 'atrasado'} ? 'badge-atrasado' : 'badge-pendiente'))"
+                                  th:text="${obj.etiqueta}">Estado</span>
                         </div>
-                        <span class="badge-estado"
-                              th:classappend="${obj.estado == 'completado'} ? 'badge-completado' :
-                                             (${obj.estado == 'progreso'} ? 'badge-progreso' :
-                                             (${obj.estado == 'atrasado'} ? 'badge-atrasado' : 'badge-pendiente'))"
-                              th:text="${obj.etiqueta}">Estado</span>
+
+                        <!-- Lecciones completadas -->
+                        <div class="lecciones-container"
+                             th:if="${leccionesPorSemana != null and leccionesPorSemana[obj.numeroSemana] != null}">
+                            <div th:each="lec : ${leccionesPorSemana[obj.numeroSemana]}"
+                                 class="leccion-item">
+                                <span class="leccion-icono">✅</span>
+                                <div class="leccion-info">
+                                    <span class="leccion-titulo"
+                                          th:text="'Lección ' + ${lec.numeroLeccion} + ' — ' + ${lec.tema}"></span>
+                                    <span class="leccion-meta"
+                                          th:text="${lec.fecha} + ' · ' + ${lec.nivelComprension} + '/10'"></span>
+                                    <span class="leccion-logro" th:if="${lec.logro != null}"
+                                          th:text="'💡 ' + ${lec.logro}"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sin lecciones aún en progreso -->
+                        <div class="lecciones-container"
+                             th:if="${leccionesPorSemana != null and leccionesPorSemana[obj.numeroSemana] == null and obj.estado == 'progreso'}">
+                            <div class="leccion-item pendiente">
+                                <span class="leccion-icono">⏳</span>
+                                <div class="leccion-info">
+                                    <span class="leccion-titulo">Sin lecciones registradas aún</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -228,7 +269,7 @@
         <div class="section-title">🧠 Perfil de Alexis</div>
         <div class="perfil-card">
             <span class="badge-tag">Generado en diagnóstico inicial</span>
-            <pre th:text="${perfil.perfilCompleto}"></pre>
+            <p th:text="${perfil.perfilCompleto}"></p>
         </div>
     </div>
 

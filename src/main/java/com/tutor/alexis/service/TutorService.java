@@ -1,14 +1,8 @@
 package com.tutor.alexis.service;
 
 import com.tutor.alexis.config.SystemPromptConfig;
-import com.tutor.alexis.model.Mensaje;
-import com.tutor.alexis.model.ObjetivoEstudio;
-import com.tutor.alexis.model.PerfilEstudiante;
-import com.tutor.alexis.model.Sesion;
-import com.tutor.alexis.repository.MensajeRepository;
-import com.tutor.alexis.repository.ObjetivoEstudioRepository;
-import com.tutor.alexis.repository.PerfilEstudianteRepository;
-import com.tutor.alexis.repository.SesionRepository;
+import com.tutor.alexis.model.*;
+import com.tutor.alexis.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +21,7 @@ public class TutorService {
     @Autowired private PerfilEstudianteRepository perfilRepository;
     @Autowired private EmailService emailService;
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
+    @Autowired private LeccionCompletadaRepository leccionRepository;
 
     private Long sesionActivaId = null;
     private List<Map<String, Object>> historialActivo = new ArrayList<>();
@@ -197,11 +192,76 @@ public class TutorService {
     private void procesarBloqueReporte(String respuesta) {
         if (respuesta.contains("REPORTE_SESION_START") && sesionActivaId != null) {
             String reporte = extraerBloque(respuesta, "REPORTE_SESION_START", "REPORTE_SESION_END");
+
+            // Guardar en sesión
             Optional<Sesion> sesionOpt = sesionRepository.findById(sesionActivaId);
             sesionOpt.ifPresent(sesion -> {
                 sesion.setReporte(reporte);
                 sesionRepository.save(sesion);
             });
+
+            // Parsear y guardar lección completada
+            guardarLeccionCompletada(reporte);
+        }
+    }
+
+    private void guardarLeccionCompletada(String reporte) {
+        try {
+            LeccionCompletada leccion = new LeccionCompletada();
+            leccion.setFecha(LocalDate.now());
+
+            for (String linea : reporte.split("\n")) {
+                linea = linea.trim();
+                if (linea.startsWith("Lección:")) {
+                    try {
+                        leccion.setNumeroLeccion(Integer.parseInt(
+                                linea.replace("Lección:", "").trim()));
+                    } catch (Exception e) { leccion.setNumeroLeccion(0); }
+                }
+                if (linea.startsWith("Tema trabajado:")) {
+                    leccion.setTema(linea.replace("Tema trabajado:", "").trim());
+                }
+                if (linea.startsWith("Nivel de comprensión:")) {
+                    try {
+                        String val = linea.replace("Nivel de comprensión:", "").trim();
+                        leccion.setNivelComprension(Integer.parseInt(val.split("/")[0].trim()));
+                    } catch (Exception e) { leccion.setNivelComprension(0); }
+                }
+                if (linea.startsWith("Logro del día:")) {
+                    leccion.setLogro(linea.replace("Logro del día:", "").trim());
+                }
+                if (linea.startsWith("Área a reforzar:")) {
+                    leccion.setAreaReforzar(linea.replace("Área a reforzar:", "").trim());
+                }
+            }
+
+            // Determinar semana basado en fecha
+            List<ObjetivoEstudio> objetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
+            for (ObjetivoEstudio obj : objetivos) {
+                if (!leccion.getFecha().isBefore(obj.getFechaInicio()) &&
+                        !leccion.getFecha().isAfter(obj.getFechaFin())) {
+                    leccion.setNumeroSemana(obj.getNumeroSemana());
+                    break;
+                }
+            }
+
+            // Validaciones antes de guardar
+            if (leccion.getTema() == null || leccion.getTema().isEmpty()) {
+                System.err.println("Lección sin tema — no se guarda");
+                return;
+            }
+            if (leccion.getNumeroSemana() == null) {
+                leccion.setNumeroSemana(0);
+            }
+            if (leccion.getNumeroLeccion() == null) {
+                leccion.setNumeroLeccion(0);
+            }
+
+            leccionRepository.save(leccion);
+            System.out.println("Lección guardada: semana " + leccion.getNumeroSemana() +
+                    " lección " + leccion.getNumeroLeccion());
+        } catch (Exception e) {
+            System.err.println("Error guardando lección: " + e.getMessage());
         }
     }
 
@@ -261,4 +321,5 @@ public class TutorService {
     public Long getSesionActivaId() {
         return sesionActivaId;
     }
+
 }
