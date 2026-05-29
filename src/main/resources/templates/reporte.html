@@ -275,18 +275,18 @@
 
     <!-- Sesión de hoy -->
     <div class="section-title">📋 Sesión de hoy</div>
-    <div class="sesion-card" th:if="${sesionHoy != null}">
-        <div class="fecha" th:text="${sesionHoy.fechaInicio}"></div>
-        <pre th:if="${sesionHoy.reporte != null}" th:text="${sesionHoy.reporte}"></pre>
-        <p class="sin-dato" th:if="${sesionHoy.reporte == null}">Sesión en curso o sin reporte aún.</p>
+    <div class="sesion-card" th:if="${sesionHoyFormateada != null}">
+        <div class="fecha" th:text="${sesionHoyFormateada.fechaInicio} + ' — ' + ${sesionHoyFormateada.fechaFin}"></div>
+        <pre th:if="${sesionHoyFormateada.reporte != null}" th:text="${sesionHoyFormateada.reporte}"></pre>
+        <p class="sin-dato" th:if="${sesionHoyFormateada.reporte == null}">Sesión en curso o sin reporte aún.</p>
     </div>
-    <p class="sin-dato" th:if="${sesionHoy == null}">No hubo sesión hoy.</p>
+    <p class="sin-dato" th:if="${sesionHoyFormateada == null}">No hubo sesión hoy.</p>
 
     <!-- Historial -->
     <div class="section-title">📆 Últimos 7 días</div>
-    <div th:each="sesion : ${sesiones}">
+    <div th:each="sesion : ${sesionesFormateadas}">
         <div class="sesion-card">
-            <div class="fecha" th:text="${sesion.fechaInicio}"></div>
+            <div class="fecha" th:text="${sesion.fechaInicio} + ' — ' + ${sesion.fechaFin}"></div>
             <pre th:if="${sesion.reporte != null}" th:text="${sesion.reporte}"></pre>
             <p class="sin-dato" th:if="${sesion.reporte == null}">Sin reporte en esta sesión.</p>
         </div>

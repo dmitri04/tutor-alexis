@@ -13,7 +13,7 @@
 
     <groupId>com.tutor</groupId>
     <artifactId>alexis</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <name>Tutor Alexis</name>
 
     <properties>
@@ -65,6 +65,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.thymeleaf.extras</groupId>
+            <artifactId>thymeleaf-extras-java8time</artifactId>
         </dependency>
 
         <!-- Test -->

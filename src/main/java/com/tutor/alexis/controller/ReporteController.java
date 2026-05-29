@@ -165,6 +165,30 @@ public class ReporteController {
 
         model.addAttribute("leccionesPorSemana", leccionesPorSemana);
 
+        // Formatear sesiones con fechas legibles
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+        List<Map<String, Object>> sesionesFormateadas = new ArrayList<>();
+        for (Sesion s : sesiones) {
+            Map<String, Object> sesionMap = new HashMap<>();
+            sesionMap.put("fechaInicio", s.getFechaInicio().format(fmt));
+            sesionMap.put("fechaFin", s.getFechaFin() != null ? s.getFechaFin().format(fmt) : "En curso");
+            sesionMap.put("reporte", s.getReporte());
+            sesionesFormateadas.add(sesionMap);
+        }
+        model.addAttribute("sesionesFormateadas", sesionesFormateadas);
+
+        // Formatear sesión de hoy
+        if (sesionHoy.isPresent()) {
+            Sesion s = sesionHoy.get();
+            Map<String, Object> hoyMap = new HashMap<>();
+            hoyMap.put("fechaInicio", s.getFechaInicio().format(fmt));
+            hoyMap.put("fechaFin", s.getFechaFin() != null ? s.getFechaFin().format(fmt) : "En curso");
+            hoyMap.put("reporte", s.getReporte());
+            model.addAttribute("sesionHoyFormateada", hoyMap);
+        } else {
+            model.addAttribute("sesionHoyFormateada", null);
+        }
+
         return "reporte";
     }
 
