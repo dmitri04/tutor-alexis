@@ -57,7 +57,11 @@ public class TutorService {
         historialActivo.add(Map.of("role", "user", "content", contenidoMensaje));
 
         String systemPrompt = obtenerSystemPrompt();
-        String respuesta = claudeService.enviarConversacionCompleta(systemPrompt, historialActivo);
+
+        List<Map<String, Object>> historialRecortado = historialActivo.size() > 20
+                ? new ArrayList<>(historialActivo.subList(historialActivo.size() - 20, historialActivo.size()))
+                : historialActivo;
+        String respuesta = claudeService.enviarConversacionCompleta(systemPrompt, historialRecortado);
 
         guardarMensaje(sesionActivaId, "assistant", respuesta);
         historialActivo.add(Map.of("role", "assistant", "content", respuesta));
@@ -91,7 +95,9 @@ public class TutorService {
                         LocalDateTime.now().withHour(0).withMinute(0));
 
         Sesion sesionSinCerrar = sesionesHoy.stream()
-                .filter(s -> s.getFechaFin() == null && s.getHistorialJson() != null)
+                .filter(s -> s.getFechaFin() == null &&
+                        s.getHistorialJson() != null &&
+                        !Boolean.TRUE.equals(s.getCierreVoluntario()))
                 .findFirst()
                 .orElse(null);
 
@@ -127,7 +133,8 @@ public class TutorService {
             Optional<Sesion> sesionOpt = sesionRepository.findById(idParaCerrar);
             sesionOpt.ifPresent(sesion -> {
                 sesion.setFechaFin(LocalDateTime.now());
-                sesion.setHistorialJson(null); // limpiar historial al cerrar
+                sesion.setHistorialJson(null);
+                sesion.setCierreVoluntario(true);
                 sesionRepository.save(sesion);
 
                 // Si no hay reporte, pedirle al tutor que genere uno

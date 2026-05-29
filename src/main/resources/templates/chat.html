@@ -503,10 +503,10 @@
         const resp = await fetch('/cerrar-sesion', { method: 'POST' });
         const data = await resp.json();
         console.log('Sesión cerrada:', data);
-        agregarMensaje('✅ Lección guardada. ¡Descansa 15 minutos y regresa para la siguiente! 💪', 'sistema');
+        agregarMensaje('✅ Lección guardada. ¡Descansa 15 minutos! 💪', 'sistema');
         btnEnviar.disabled = true;
-        segundosSesion = 0;
-        document.getElementById('timer').textContent = '0:00';
+        // Recargar página después de 3 segundos
+        setTimeout(() => { window.location.reload(); }, 3000);
     }
 
     btnEnviar.addEventListener('click', enviarMensaje);

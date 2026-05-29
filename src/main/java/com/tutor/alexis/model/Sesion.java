@@ -26,6 +26,7 @@ public class Sesion {
     private String reporte;
     @Column(columnDefinition = "TEXT")
     private String historialJson;
+    private Boolean cierreVoluntario = false;
 
     @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Mensaje> mensajes = new ArrayList<>();
