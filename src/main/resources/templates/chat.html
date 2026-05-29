@@ -434,8 +434,8 @@
         chatContainer.appendChild(div);
         chatContainer.scrollTop = chatContainer.scrollHeight;
 
-        // Cerrar sesión automáticamente al completar las 3 lecciones
-        if (tipo === 'tutor' && textoLimpio.includes('Completaste tus 3 lecciones de hoy')) {
+        // Cerrar sesión automáticamente al completar las 4 lecciones
+        if (tipo === 'tutor' && textoLimpio.includes('Completaste tus 4 lecciones de hoy')) {
             setTimeout(async () => {
                 await fetch('/cerrar-sesion', { method: 'POST' });
                 btnEnviar.disabled = true;

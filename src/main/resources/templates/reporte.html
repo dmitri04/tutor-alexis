@@ -141,15 +141,14 @@
 
 <div class="container">
 
-    <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
             <div class="label">Total sesiones</div>
             <div class="value" th:text="${totalSesiones}">0</div>
         </div>
         <div class="stat-card verde">
-            <div class="label">Esta semana</div>
-            <div class="value" th:text="${sesiones.size()}">0</div>
+            <div class="label">Lecciones hoy</div>
+            <div class="value" th:text="${leccionesHoy} + '/4'">0/4</div>
         </div>
         <div class="stat-card">
             <div class="label">Diagnóstico</div>
@@ -159,6 +158,22 @@
             <div class="label">Días hasta prepa</div>
             <div class="value" th:text="${diasRestantes}">--</div>
         </div>
+        <div class="stat-card verde">
+            <div class="label">Racha 🔥</div>
+            <div class="value" th:text="${racha} + ' días'">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Comprensión semana</div>
+            <div class="value" th:text="${promedioComprension} + '/10'">0</div>
+        </div>
+    </div>
+
+    <!-- Tema actual -->
+    <div class="perfil-card" style="margin-bottom:16px; border-left: 4px solid #e94560;">
+        <h2 style="margin-bottom:8px;">📖 Tema actual</h2>
+        <p style="color:#555; font-size:0.95rem;" th:text="${temaActual}">Sin sesiones aún</p>
+        <p style="color:#888; font-size:0.8rem; margin-top:4px;"
+           th:text="'Última actividad: hace ' + ${ultimaActividad}"></p>
     </div>
 
     <!-- Alerta de atraso si hay objetivos vencidos -->

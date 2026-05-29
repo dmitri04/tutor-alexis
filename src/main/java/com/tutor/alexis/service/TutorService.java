@@ -115,7 +115,6 @@ public class TutorService {
     }
 
     private String obtenerSystemPrompt() {
-        // Contar lecciones de hoy
         long leccionesHoy = sesionRepository
                 .findByFechaInicioAfterOrderByFechaInicioDesc(
                         LocalDateTime.now().withHour(0).withMinute(0))
@@ -123,7 +122,14 @@ public class TutorService {
                 .filter(s -> s.getReporte() != null)
                 .count();
 
-        String contextoHoy = "Lecciones completadas hoy: " + leccionesHoy + " de 3.\n";
+        long diasEstudiados = sesionRepository.findAllByOrderByFechaInicioDesc()
+                .stream()
+                .map(s -> s.getFechaInicio().toLocalDate())
+                .distinct()
+                .count();
+
+        String contextoHoy = "Lecciones completadas hoy: " + leccionesHoy + " de 4.\n" +
+                "Días estudiados en total: " + diasEstudiados + ".\n";
 
         Optional<PerfilEstudiante> perfilOpt = perfilRepository.findFirstByOrderByIdAsc();
         if (perfilOpt.isPresent() && perfilOpt.get().getDiagnosticoCompletado()) {

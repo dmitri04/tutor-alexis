@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Controller
 public class ReporteController {
@@ -26,8 +27,8 @@ public class ReporteController {
     @Autowired private SesionRepository sesionRepository;
     @Autowired private PerfilEstudianteRepository perfilRepository;
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
-    @Autowired private EmailService emailService;
     @Autowired private ClaudeService claudeService;
+    @Autowired private EmailService emailService;
 
     @GetMapping("/reporte")
     public String reporte(Model model) {
@@ -41,15 +42,45 @@ public class ReporteController {
 
         long diasRestantes = ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.of(2026, 8, 21));
 
-        // Construir fases dinámicas desde BD
+        // Lecciones completadas hoy
+        long leccionesHoy = sesionRepository
+                .findByFechaInicioAfterOrderByFechaInicioDesc(
+                        LocalDateTime.now().withHour(0).withMinute(0))
+                .stream()
+                .filter(s -> s.getReporte() != null)
+                .count();
+
+        // Racha de días consecutivos
+        List<Sesion> todasSesiones = sesionRepository.findAllByOrderByFechaInicioDesc();
+        long racha = calcularRacha(todasSesiones);
+
+        // Última actividad
+        String ultimaActividad = todasSesiones.isEmpty() ? "Sin actividad" :
+                ChronoUnit.HOURS.between(
+                        todasSesiones.get(0).getFechaInicio(), LocalDateTime.now()) + " horas";
+
+        // Tema actual — último reporte
+        String temaActual = sesiones.stream()
+                .filter(s -> s.getReporte() != null)
+                .findFirst()
+                .map(s -> extraerTema(s.getReporte()))
+                .orElse("Sin sesiones aún");
+
+        // Nivel de comprensión promedio esta semana
+        double promedioComprension = sesiones.stream()
+                .filter(s -> s.getReporte() != null)
+                .mapToInt(s -> extraerNivel(s.getReporte()))
+                .filter(n -> n > 0)
+                .average()
+                .orElse(0);
+
+        // Construir fases dinámicas
         List<Map<String, Object>> fases = new ArrayList<>();
         int objetivosAtrasados = 0;
         LocalDate hoy = LocalDate.now();
 
         List<ObjetivoEstudio> todosObjetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
-
         if (!todosObjetivos.isEmpty()) {
-            // Actualizar estados automáticamente
             for (ObjetivoEstudio obj : todosObjetivos) {
                 if (!"completado".equals(obj.getEstado())) {
                     if (hoy.isAfter(obj.getFechaFin())) {
@@ -61,7 +92,6 @@ public class ReporteController {
                 }
             }
 
-            // Agrupar por fase
             Map<String, List<ObjetivoEstudio>> porFase = new LinkedHashMap<>();
             for (ObjetivoEstudio obj : todosObjetivos) {
                 porFase.computeIfAbsent(obj.getFase(), k -> new ArrayList<>()).add(obj);
@@ -70,11 +100,9 @@ public class ReporteController {
             for (Map.Entry<String, List<ObjetivoEstudio>> entry : porFase.entrySet()) {
                 List<Map<String, Object>> objetivosUI = new ArrayList<>();
                 int completados = 0;
-
                 for (ObjetivoEstudio obj : entry.getValue()) {
                     if ("atrasado".equals(obj.getEstado())) objetivosAtrasados++;
                     if ("completado".equals(obj.getEstado())) completados++;
-
                     String icono = switch (obj.getEstado()) {
                         case "completado" -> "✅";
                         case "progreso"   -> "🔄";
@@ -87,7 +115,6 @@ public class ReporteController {
                         case "atrasado"   -> "Atrasado";
                         default           -> "Pendiente";
                     };
-
                     Map<String, Object> objUI = new HashMap<>();
                     objUI.put("nombre", obj.getNombre());
                     objUI.put("subtemas", obj.getSubtemas());
@@ -98,10 +125,8 @@ public class ReporteController {
                     objUI.put("fechaTexto", "Semana del " + obj.getFechaInicio() + " al " + obj.getFechaFin());
                     objetivosUI.add(objUI);
                 }
-
                 int porcentaje = entry.getValue().isEmpty() ? 0 :
                         (completados * 100 / entry.getValue().size());
-
                 Map<String, Object> fase = new HashMap<>();
                 fase.put("nombre", entry.getKey());
                 fase.put("objetivos", objetivosUI);
@@ -119,130 +144,81 @@ public class ReporteController {
         model.addAttribute("diasRestantes", diasRestantes);
         model.addAttribute("fases", fases);
         model.addAttribute("objetivosAtrasados", objetivosAtrasados);
-
-
-        System.out.println("Objetivos en BD: " + objetivoRepository.count());
-        System.out.println("Fases construidas: " + fases.size());
+        model.addAttribute("leccionesHoy", leccionesHoy);
+        model.addAttribute("racha", racha);
+        model.addAttribute("ultimaActividad", ultimaActividad);
+        model.addAttribute("temaActual", temaActual);
+        model.addAttribute("promedioComprension", String.format("%.1f", promedioComprension));
 
         return "reporte";
     }
 
-    @GetMapping("/init-plan-prueba")
-    @ResponseBody
-    public String initPlanPrueba() {
-        return "Ya no necesario — el plan se genera dinámicamente desde el diagnóstico.";
-    }
-
-    @GetMapping("/init-objetivos-prueba")
-    @ResponseBody
-    public String initObjetivosPrueba() {
-        objetivoRepository.deleteAll();
-        LocalDate inicio = LocalDate.now();
-
-        Object[][] datos = {
-                {"FASE 1 — Fundamentos", 1, "Razonamiento sin fórmulas",
-                        "Lógica cotidiana, patrones numéricos, incógnitas sin álgebra",
-                        "Que Alexis descubra que ya sabe razonar sin saberlo", 0},
-                {"FASE 1 — Fundamentos", 2, "Lectura estratégica",
-                        "Textos de interés, idea principal, hechos vs opiniones",
-                        "Leer con propósito, no por obligación", 7},
-                {"FASE 1 — Fundamentos", 3, "Fracciones aplicadas",
-                        "Recetas, descuentos, probabilidades en juegos",
-                        "Entender fracciones desde la vida real", 14},
-                {"FASE 1 — Fundamentos", 4, "Argumentación básica",
-                        "Construir argumentos, detectar falacias, defender opiniones",
-                        "Pensar y expresarse con lógica", 21},
-                {"FASE 2 — Formalización", 5, "Álgebra con significado",
-                        "La x como incógnita, ecuaciones desde problemas reales",
-                        "Que el álgebra tenga sentido por fin", 28},
-                {"FASE 2 — Formalización", 6, "Comprensión profunda",
-                        "Inferencias, resúmenes, textos complejos",
-                        "Leer entre líneas y sintetizar ideas", 35},
-                {"FASE 3 — Intensificación", 7, "Geometría intuitiva",
-                        "Áreas, perímetros, Pitágoras desde casos reales",
-                        "Razonamiento espacial aplicado", 42},
-                {"FASE 3 — Intensificación", 8, "Análisis crítico",
-                        "Textos con posturas opuestas, sesgos, argumentos débiles",
-                        "Pensar críticamente ante cualquier información", 49}
-        };
-
-        for (Object[] d : datos) {
-            ObjetivoEstudio obj = new ObjetivoEstudio();
-            obj.setFase((String) d[0]);
-            obj.setNumeroSemana((int) d[1]);
-            obj.setNombre((String) d[2]);
-            obj.setSubtemas((String) d[3]);
-            obj.setProposito((String) d[4]);
-            obj.setFechaInicio(inicio.plusDays((int) d[5]));
-            obj.setFechaFin(inicio.plusDays((int) d[5] + 4));
-            obj.setEstado("pendiente");
-            objetivoRepository.save(obj);
+    private long calcularRacha(List<Sesion> sesiones) {
+        if (sesiones.isEmpty()) return 0;
+        Set<LocalDate> diasConSesion = sesiones.stream()
+                .map(s -> s.getFechaInicio().toLocalDate())
+                .collect(Collectors.toSet());
+        long racha = 0;
+        LocalDate dia = LocalDate.now();
+        while (diasConSesion.contains(dia)) {
+            racha++;
+            dia = dia.minusDays(1);
         }
-        return "Objetivos de prueba creados: " + objetivoRepository.count();
+        return racha;
     }
 
-    @GetMapping("/enviar-plan")
-    @ResponseBody
-    public String enviarPlan() {
-        List<ObjetivoEstudio> objetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
-        if (objetivos.isEmpty()) return "No hay plan generado";
-
-        StringBuilder plan = new StringBuilder();
-        String faseActual = "";
-        for (ObjetivoEstudio obj : objetivos) {
-            if (!obj.getFase().equals(faseActual)) {
-                faseActual = obj.getFase();
-                plan.append("\n").append(faseActual).append("\n");
+    private String extraerTema(String reporte) {
+        if (reporte == null) return "Sin datos";
+        for (String linea : reporte.split("\n")) {
+            if (linea.startsWith("Tema trabajado:")) {
+                return linea.replace("Tema trabajado:", "").trim();
             }
-            plan.append("\nSemana ").append(obj.getNumeroSemana())
-                    .append(" — ").append(obj.getNombre()).append("\n")
-                    .append("📌 ").append(obj.getSubtemas()).append("\n")
-                    .append("🎯 ").append(obj.getProposito()).append("\n")
-                    .append("📅 ").append(obj.getFechaInicio()).append(" al ").append(obj.getFechaFin()).append("\n");
         }
+        return "Sin datos";
+    }
 
-        emailService.enviarReporteSesion(plan.toString(), "Plan de estudios completo de Alexis");
-        return "Email enviado";
+    private int extraerNivel(String reporte) {
+        if (reporte == null) return 0;
+        for (String linea : reporte.split("\n")) {
+            if (linea.startsWith("Nivel de comprensión:")) {
+                try {
+                    String valor = linea.replace("Nivel de comprensión:", "").trim();
+                    return Integer.parseInt(valor.split("/")[0].trim());
+                } catch (Exception e) { return 0; }
+            }
+        }
+        return 0;
     }
 
     @GetMapping("/enviar-resumen-semanal")
     @ResponseBody
     public String enviarResumenSemanal() {
         List<Sesion> sesiones = sesionRepository
-                .findByFechaInicioAfterOrderByFechaInicioDesc(
-                        LocalDateTime.now().minusDays(7));
-
+                .findByFechaInicioAfterOrderByFechaInicioDesc(LocalDateTime.now().minusDays(7));
         if (sesiones.isEmpty()) return "No hay sesiones esta semana";
-
         StringBuilder reportes = new StringBuilder();
         for (Sesion s : sesiones) {
-            if (s.getReporte() != null) {
-                reportes.append(s.getReporte()).append("\n---\n");
-            }
+            if (s.getReporte() != null) reportes.append(s.getReporte()).append("\n---\n");
         }
-
         if (reportes.length() == 0) return "No hay reportes esta semana";
-
         String prompt = "Eres el tutor de Alexis. Basándote en estos reportes de la semana, " +
                 "genera un resumen ejecutivo para su mamá con:\n" +
-                "- Qué aprendió esta semana\n" +
-                "- Cómo fue su actitud general\n" +
-                "- Sus logros más importantes\n" +
-                "- Qué necesita reforzar la próxima semana\n" +
-                "- Calificación general del 1 al 10\n" +
-                "- Recomendación para los papás\n\n" +
+                "- Qué aprendió esta semana\n- Cómo fue su actitud general\n" +
+                "- Sus logros más importantes\n- Qué necesita reforzar la próxima semana\n" +
+                "- Calificación general del 1 al 10\n- Recomendación para los papás\n\n" +
                 "Reportes:\n" + reportes;
-
         String resumen = claudeService.enviarConversacionCompleta(
                 "Eres el tutor personal de Alexis Leonardo.",
-                List.of(Map.of("role", "user", "content", prompt))
-        );
-
-        String semana = LocalDateTime.now()
-                .format(DateTimeFormatter.ofPattern(
-                        "dd 'de' MMMM 'de' yyyy", new java.util.Locale("es", "MX")));
-
+                List.of(Map.of("role", "user", "content", prompt)));
+        String semana = LocalDateTime.now().format(
+                DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", new Locale("es", "MX")));
         emailService.enviarResumenSemanal(resumen, semana);
-        return "Resumen enviado a mamá ✅";
+        return "Resumen enviado ✅";
+    }
+
+    @GetMapping("/init-objetivos-prueba")
+    @ResponseBody
+    public String initObjetivosPrueba() {
+        return "Ya no necesario — el plan se genera dinámicamente desde el diagnóstico.";
     }
 }
