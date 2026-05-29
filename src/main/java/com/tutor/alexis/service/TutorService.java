@@ -36,16 +36,15 @@ public class TutorService {
             iniciarNuevaSesion();
         }
 
-        // Construir contenido del mensaje
         Object contenidoMensaje;
         if (imagenBase64 != null) {
             contenidoMensaje = List.of(
-                Map.of("type", "image", "source", Map.of(
-                    "type", "base64",
-                    "media_type", mediaType,
-                    "data", imagenBase64
-                )),
-                Map.of("type", "text", "text", mensajeUsuario)
+                    Map.of("type", "image", "source", Map.of(
+                            "type", "base64",
+                            "media_type", mediaType,
+                            "data", imagenBase64
+                    )),
+                    Map.of("type", "text", "text", mensajeUsuario)
             );
         } else {
             contenidoMensaje = mensajeUsuario;
@@ -79,26 +78,33 @@ public class TutorService {
     public Map<String, Object> cerrarSesion() {
         Map<String, Object> resultado = new HashMap<>();
         if (sesionActivaId != null) {
-            Optional<Sesion> sesionOpt = sesionRepository.findById(sesionActivaId);
+            Long idParaCerrar = sesionActivaId; // guardar antes de limpiar
+
+            Optional<Sesion> sesionOpt = sesionRepository.findById(idParaCerrar);
             sesionOpt.ifPresent(sesion -> {
                 sesion.setFechaFin(LocalDateTime.now());
                 sesionRepository.save(sesion);
 
                 // Si no hay reporte, pedirle al tutor que genere uno
                 if (sesion.getReporte() == null && !historialActivo.isEmpty()) {
-                    String reporteAuto = claudeService.enviarConversacionCompleta(
-                            obtenerSystemPrompt(),
-                            new ArrayList<>(historialActivo) {{
-                                add(Map.of("role", "user", "content",
-                                        "La sesión de estudio terminó. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
-                            }}
-                    );
-                    procesarBloqueReporte(reporteAuto);
+                    try {
+                        Thread.sleep(2000); // esperar antes de reintentar por rate limit
+                        List<Map<String, Object>> historialConCierre = new ArrayList<>(historialActivo);
+                        historialConCierre.add(Map.of("role", "user", "content",
+                                "La sesión terminó. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
+                        String reporteAuto = claudeService.enviarConversacionCompleta(
+                                obtenerSystemPrompt(), historialConCierre);
+                        procesarBloqueReporte(reporteAuto);
+                    } catch (Exception e) {
+                        System.err.println("Error generando reporte automático: " + e.getMessage());
+                    }
                 }
 
                 // Recargar sesión actualizada
-                Sesion sesionFinal = sesionRepository.findById(sesionActivaId).orElse(sesion);
-
+                sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal -> {
+                    System.out.println("Sesión cerrada: " + idParaCerrar +
+                            " — reporte: " + (sesionFinal.getReporte() != null ? "✅" : "❌"));
+                });
             });
 
             sesionActivaId = null;
@@ -160,7 +166,7 @@ public class TutorService {
 
     private void parsearYGuardarPlan(String json) {
         try {
-            objetivoRepository.deleteAll(); // limpiar plan anterior
+            objetivoRepository.deleteAll();
 
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(json);
@@ -193,14 +199,12 @@ public class TutorService {
         if (respuesta.contains("REPORTE_SESION_START") && sesionActivaId != null) {
             String reporte = extraerBloque(respuesta, "REPORTE_SESION_START", "REPORTE_SESION_END");
 
-            // Guardar en sesión
             Optional<Sesion> sesionOpt = sesionRepository.findById(sesionActivaId);
             sesionOpt.ifPresent(sesion -> {
                 sesion.setReporte(reporte);
                 sesionRepository.save(sesion);
             });
 
-            // Parsear y guardar lección completada
             guardarLeccionCompletada(reporte);
         }
     }
@@ -235,6 +239,14 @@ public class TutorService {
                 }
             }
 
+            // Validaciones
+            if (leccion.getTema() == null || leccion.getTema().isEmpty()) {
+                System.err.println("Lección sin tema — no se guarda");
+                return;
+            }
+            if (leccion.getNumeroSemana() == null) leccion.setNumeroSemana(0);
+            if (leccion.getNumeroLeccion() == null) leccion.setNumeroLeccion(0);
+
             // Determinar semana basado en fecha
             List<ObjetivoEstudio> objetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
             for (ObjetivoEstudio obj : objetivos) {
@@ -243,18 +255,6 @@ public class TutorService {
                     leccion.setNumeroSemana(obj.getNumeroSemana());
                     break;
                 }
-            }
-
-            // Validaciones antes de guardar
-            if (leccion.getTema() == null || leccion.getTema().isEmpty()) {
-                System.err.println("Lección sin tema — no se guarda");
-                return;
-            }
-            if (leccion.getNumeroSemana() == null) {
-                leccion.setNumeroSemana(0);
-            }
-            if (leccion.getNumeroLeccion() == null) {
-                leccion.setNumeroLeccion(0);
             }
 
             leccionRepository.save(leccion);
@@ -305,8 +305,8 @@ public class TutorService {
 
     public boolean isDiagnosticoCompletado() {
         return perfilRepository.findFirstByOrderByIdAsc()
-            .map(PerfilEstudiante::getDiagnosticoCompletado)
-            .orElse(false);
+                .map(PerfilEstudiante::getDiagnosticoCompletado)
+                .orElse(false);
     }
 
     public long getTiempoSesionMinutos() {
@@ -321,5 +321,4 @@ public class TutorService {
     public Long getSesionActivaId() {
         return sesionActivaId;
     }
-
 }
