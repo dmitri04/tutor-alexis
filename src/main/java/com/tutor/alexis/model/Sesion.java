@@ -24,6 +24,8 @@ public class Sesion {
     private String objetivoSiguiente;
     @Column(columnDefinition = "TEXT")
     private String reporte;
+    @Column(columnDefinition = "TEXT")
+    private String historialJson;
 
     @OneToMany(mappedBy = "sesion", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Mensaje> mensajes = new ArrayList<>();

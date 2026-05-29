@@ -1,5 +1,7 @@
 package com.tutor.alexis.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tutor.alexis.config.SystemPromptConfig;
 import com.tutor.alexis.model.*;
 import com.tutor.alexis.repository.*;
@@ -23,6 +25,7 @@ public class TutorService {
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
     @Autowired private LeccionCompletadaRepository leccionRepository;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private Long sesionActivaId = null;
     private List<Map<String, Object>> historialActivo = new ArrayList<>();
     private LocalDateTime inicioSesion = null;
@@ -59,6 +62,9 @@ public class TutorService {
         guardarMensaje(sesionActivaId, "assistant", respuesta);
         historialActivo.add(Map.of("role", "assistant", "content", respuesta));
 
+        // Persistir historial en BD después de cada mensaje
+        persistirHistorial();
+
         procesarBloquesDiagnostico(respuesta);
         procesarBloqueReporte(respuesta);
         procesarBloqueExamen(respuesta);
@@ -66,29 +72,68 @@ public class TutorService {
         return respuesta;
     }
 
+    private void persistirHistorial() {
+        try {
+            String historialStr = objectMapper.writeValueAsString(historialActivo);
+            sesionRepository.findById(sesionActivaId).ifPresent(s -> {
+                s.setHistorialJson(historialStr);
+                sesionRepository.save(s);
+            });
+        } catch (Exception e) {
+            System.err.println("Error persistiendo historial: " + e.getMessage());
+        }
+    }
+
     private void iniciarNuevaSesion() {
-        Sesion sesion = new Sesion();
-        sesion.setFechaInicio(LocalDateTime.now());
-        sesion = sesionRepository.save(sesion);
-        sesionActivaId = sesion.getId();
+        // Buscar sesión activa sin cerrar del día
+        List<Sesion> sesionesHoy = sesionRepository
+                .findByFechaInicioAfterOrderByFechaInicioDesc(
+                        LocalDateTime.now().withHour(0).withMinute(0));
+
+        Sesion sesionSinCerrar = sesionesHoy.stream()
+                .filter(s -> s.getFechaFin() == null && s.getHistorialJson() != null)
+                .findFirst()
+                .orElse(null);
+
+        if (sesionSinCerrar != null) {
+            // Recuperar sesión existente
+            sesionActivaId = sesionSinCerrar.getId();
+            try {
+                historialActivo = objectMapper.readValue(
+                        sesionSinCerrar.getHistorialJson(),
+                        new TypeReference<List<Map<String, Object>>>(){});
+                System.out.println("Sesión recuperada: ID " + sesionActivaId +
+                        " con " + historialActivo.size() + " mensajes");
+            } catch (Exception e) {
+                System.err.println("Error recuperando historial: " + e.getMessage());
+                historialActivo = new ArrayList<>();
+            }
+        } else {
+            Sesion sesion = new Sesion();
+            sesion.setFechaInicio(LocalDateTime.now());
+            sesion = sesionRepository.save(sesion);
+            sesionActivaId = sesion.getId();
+            historialActivo = new ArrayList<>();
+            System.out.println("Nueva sesión iniciada: ID " + sesionActivaId);
+        }
         inicioSesion = LocalDateTime.now();
-        historialActivo = new ArrayList<>();
     }
 
     public Map<String, Object> cerrarSesion() {
         Map<String, Object> resultado = new HashMap<>();
         if (sesionActivaId != null) {
-            Long idParaCerrar = sesionActivaId; // guardar antes de limpiar
+            Long idParaCerrar = sesionActivaId;
 
             Optional<Sesion> sesionOpt = sesionRepository.findById(idParaCerrar);
             sesionOpt.ifPresent(sesion -> {
                 sesion.setFechaFin(LocalDateTime.now());
+                sesion.setHistorialJson(null); // limpiar historial al cerrar
                 sesionRepository.save(sesion);
 
                 // Si no hay reporte, pedirle al tutor que genere uno
                 if (sesion.getReporte() == null && !historialActivo.isEmpty()) {
                     try {
-                        Thread.sleep(2000); // esperar antes de reintentar por rate limit
+                        Thread.sleep(2000);
                         List<Map<String, Object>> historialConCierre = new ArrayList<>(historialActivo);
                         historialConCierre.add(Map.of("role", "user", "content",
                                 "La sesión terminó. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
@@ -100,11 +145,10 @@ public class TutorService {
                     }
                 }
 
-                // Recargar sesión actualizada
-                sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal -> {
-                    System.out.println("Sesión cerrada: " + idParaCerrar +
-                            " — reporte: " + (sesionFinal.getReporte() != null ? "✅" : "❌"));
-                });
+                sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal ->
+                        System.out.println("Sesión cerrada: " + idParaCerrar +
+                                " — reporte: " + (sesionFinal.getReporte() != null ? "✅" : "❌"))
+                );
             });
 
             sesionActivaId = null;
@@ -146,7 +190,6 @@ public class TutorService {
     private void procesarBloquesDiagnostico(String respuesta) {
         if (respuesta.contains("PERFIL_ALEXIS_START") && respuesta.contains("PERFIL_ALEXIS_END")) {
             String perfil = extraerBloque(respuesta, "PERFIL_ALEXIS_START", "PERFIL_ALEXIS_END");
-
             PerfilEstudiante estudiante = perfilRepository.findFirstByOrderByIdAsc()
                     .orElse(new PerfilEstudiante());
             estudiante.setNombre("Alexis Leonardo");
@@ -167,16 +210,12 @@ public class TutorService {
     private void parsearYGuardarPlan(String json) {
         try {
             objetivoRepository.deleteAll();
-
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(json);
+            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(json);
             com.fasterxml.jackson.databind.JsonNode fases = root.get("fases");
 
             for (com.fasterxml.jackson.databind.JsonNode fase : fases) {
                 String nombreFase = fase.get("fase").asText();
-                com.fasterxml.jackson.databind.JsonNode objetivos = fase.get("objetivos");
-
-                for (com.fasterxml.jackson.databind.JsonNode obj : objetivos) {
+                for (com.fasterxml.jackson.databind.JsonNode obj : fase.get("objetivos")) {
                     ObjetivoEstudio objetivo = new ObjetivoEstudio();
                     objetivo.setFase(nombreFase);
                     objetivo.setNumeroSemana(obj.get("numeroSemana").asInt());
@@ -198,13 +237,10 @@ public class TutorService {
     private void procesarBloqueReporte(String respuesta) {
         if (respuesta.contains("REPORTE_SESION_START") && sesionActivaId != null) {
             String reporte = extraerBloque(respuesta, "REPORTE_SESION_START", "REPORTE_SESION_END");
-
-            Optional<Sesion> sesionOpt = sesionRepository.findById(sesionActivaId);
-            sesionOpt.ifPresent(sesion -> {
+            sesionRepository.findById(sesionActivaId).ifPresent(sesion -> {
                 sesion.setReporte(reporte);
                 sesionRepository.save(sesion);
             });
-
             guardarLeccionCompletada(reporte);
         }
     }
@@ -217,29 +253,24 @@ public class TutorService {
             for (String linea : reporte.split("\n")) {
                 linea = linea.trim();
                 if (linea.startsWith("Lección:")) {
-                    try {
-                        leccion.setNumeroLeccion(Integer.parseInt(
-                                linea.replace("Lección:", "").trim()));
+                    try { leccion.setNumeroLeccion(Integer.parseInt(
+                            linea.replace("Lección:", "").trim()));
                     } catch (Exception e) { leccion.setNumeroLeccion(0); }
                 }
-                if (linea.startsWith("Tema trabajado:")) {
+                if (linea.startsWith("Tema trabajado:"))
                     leccion.setTema(linea.replace("Tema trabajado:", "").trim());
-                }
                 if (linea.startsWith("Nivel de comprensión:")) {
                     try {
                         String val = linea.replace("Nivel de comprensión:", "").trim();
                         leccion.setNivelComprension(Integer.parseInt(val.split("/")[0].trim()));
                     } catch (Exception e) { leccion.setNivelComprension(0); }
                 }
-                if (linea.startsWith("Logro del día:")) {
+                if (linea.startsWith("Logro del día:"))
                     leccion.setLogro(linea.replace("Logro del día:", "").trim());
-                }
-                if (linea.startsWith("Área a reforzar:")) {
+                if (linea.startsWith("Área a reforzar:"))
                     leccion.setAreaReforzar(linea.replace("Área a reforzar:", "").trim());
-                }
             }
 
-            // Validaciones
             if (leccion.getTema() == null || leccion.getTema().isEmpty()) {
                 System.err.println("Lección sin tema — no se guarda");
                 return;
@@ -248,8 +279,7 @@ public class TutorService {
             if (leccion.getNumeroLeccion() == null) leccion.setNumeroLeccion(0);
 
             // Determinar semana basado en fecha
-            List<ObjetivoEstudio> objetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
-            for (ObjetivoEstudio obj : objetivos) {
+            for (ObjetivoEstudio obj : objetivoRepository.findAllByOrderByNumeroSemanaAsc()) {
                 if (!leccion.getFecha().isBefore(obj.getFechaInicio()) &&
                         !leccion.getFecha().isAfter(obj.getFechaFin())) {
                     leccion.setNumeroSemana(obj.getNumeroSemana());
@@ -269,16 +299,14 @@ public class TutorService {
         if (respuesta.contains("REPORTE_EXAMEN_START")) {
             String reporte = extraerBloque(respuesta, "REPORTE_EXAMEN_START", "REPORTE_EXAMEN_END");
             String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-            String calificacion = extraerCalificacion(reporte);
-            emailService.enviarResultadoExamen(reporte, fecha, calificacion);
+            emailService.enviarResultadoExamen(reporte, fecha, extraerCalificacion(reporte));
         }
     }
 
     private String extraerCalificacion(String reporte) {
         for (String linea : reporte.split("\n")) {
-            if (linea.startsWith("Calificación:")) {
+            if (linea.startsWith("Calificación:"))
                 return linea.replace("Calificación:", "").trim();
-            }
         }
         return "?/10";
     }
@@ -286,9 +314,8 @@ public class TutorService {
     private String extraerBloque(String texto, String inicio, String fin) {
         int idxInicio = texto.indexOf(inicio) + inicio.length();
         int idxFin = texto.indexOf(fin);
-        if (idxInicio > 0 && idxFin > idxInicio) {
+        if (idxInicio > 0 && idxFin > idxInicio)
             return texto.substring(idxInicio, idxFin).trim();
-        }
         return "";
     }
 
