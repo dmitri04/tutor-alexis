@@ -27,6 +27,7 @@ public class ReporteController {
     @Autowired private EmailService emailService;
     @Autowired private LeccionCompletadaRepository leccionRepository;
     @Autowired private ExamenResultadoRepository examenRepository;
+    @Autowired private MensajeRepository mensajeRepository;
 
     @GetMapping("/reporte")
     public String reporte(Model model) {
@@ -157,28 +158,44 @@ public class ReporteController {
                 leccionesPorSemana.computeIfAbsent(lec.getNumeroSemana(), k -> new ArrayList<>()).add(lec);
             }
         }
-
         model.addAttribute("leccionesPorSemana", leccionesPorSemana);
 
-        // Formatear sesiones con fechas legibles
+        // Formatear sesiones con fechas legibles + índice de participación
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
         List<Map<String, Object>> sesionesFormateadas = new ArrayList<>();
+        List<Integer> scoresParticipacion = new ArrayList<>();
+
         for (Sesion s : sesiones) {
             Map<String, Object> sesionMap = new HashMap<>();
             sesionMap.put("fechaInicio", s.getFechaInicio().format(fmt));
             sesionMap.put("fechaFin", s.getFechaFin() != null ? s.getFechaFin().format(fmt) : "En curso");
             sesionMap.put("reporte", s.getReporte());
+
+            // Calcular participación
+            Map<String, Object> participacion = calcularParticipacion(s.getId());
+            sesionMap.put("participacion", participacion);
+            scoresParticipacion.add((Integer) participacion.get("score"));
+
             sesionesFormateadas.add(sesionMap);
         }
         model.addAttribute("sesionesFormateadas", sesionesFormateadas);
 
-        // Formatear sesión de hoy
+        // Participación promedio de la semana
+        double promedioParticipacion = scoresParticipacion.stream()
+                .mapToInt(Integer::intValue)
+                .average()
+                .orElse(0);
+        model.addAttribute("promedioParticipacion", calcularNivelParticipacion((int) promedioParticipacion));
+        model.addAttribute("promedioParticipacionScore", (int) promedioParticipacion);
+
+        // Formatear sesión de hoy con participación
         if (sesionHoy.isPresent()) {
             Sesion s = sesionHoy.get();
             Map<String, Object> hoyMap = new HashMap<>();
             hoyMap.put("fechaInicio", s.getFechaInicio().format(fmt));
             hoyMap.put("fechaFin", s.getFechaFin() != null ? s.getFechaFin().format(fmt) : "En curso");
             hoyMap.put("reporte", s.getReporte());
+            hoyMap.put("participacion", calcularParticipacion(s.getId()));
             model.addAttribute("sesionHoyFormateada", hoyMap);
         } else {
             model.addAttribute("sesionHoyFormateada", null);
@@ -188,6 +205,81 @@ public class ReporteController {
         model.addAttribute("examenes", examenes);
 
         return "reporte";
+    }
+
+    /**
+     * Calcula el índice de participación de Alexis en una sesión.
+     * Score 0-100 basado en:
+     * - Cantidad de mensajes del usuario (40%)
+     * - Longitud promedio de sus mensajes (40%)
+     * - Gaps de tiempo entre mensajes (20% penalización)
+     */
+    private Map<String, Object> calcularParticipacion(Long sesionId) {
+        Map<String, Object> resultado = new HashMap<>();
+        List<Mensaje> mensajes = mensajeRepository.findBySesionIdOrderByTimestamp(sesionId);
+
+        List<Mensaje> mensajesAlexis = mensajes.stream()
+                .filter(m -> "user".equals(m.getRol()))
+                .collect(Collectors.toList());
+
+        if (mensajesAlexis.isEmpty()) {
+            resultado.put("score", 0);
+            resultado.put("nivel", "Sin datos");
+            resultado.put("clase", "gris");
+            resultado.put("mensajes", 0);
+            resultado.put("longitudPromedio", 0);
+            resultado.put("gapPromedio", 0);
+            return resultado;
+        }
+
+        // Factor 1: cantidad de mensajes (ideal: 15-25 en 40 min)
+        int cantidadMensajes = mensajesAlexis.size();
+        int scoreMensajes = Math.min(100, (cantidadMensajes * 100) / 20); // 20 mensajes = 100%
+
+        // Factor 2: longitud promedio de mensajes (ideal: >50 chars = razona, explica)
+        double longitudPromedio = mensajesAlexis.stream()
+                .mapToInt(m -> m.getContenido() != null ? m.getContenido().length() : 0)
+                .average()
+                .orElse(0);
+        int scoreLongitud = (int) Math.min(100, (longitudPromedio * 100) / 80); // 80 chars = 100%
+
+        // Factor 3: gaps entre mensajes (penaliza gaps >5 min)
+        long gapPromedio = 0;
+        int penalizacionGaps = 0;
+        if (mensajes.size() > 1) {
+            List<Long> gaps = new ArrayList<>();
+            for (int i = 1; i < mensajes.size(); i++) {
+                long gap = ChronoUnit.MINUTES.between(
+                        mensajes.get(i-1).getTimestamp(),
+                        mensajes.get(i).getTimestamp());
+                if (gap > 0 && gap < 30) gaps.add(gap); // ignora gaps >30 min (descansos)
+            }
+            if (!gaps.isEmpty()) {
+                gapPromedio = gaps.stream().mapToLong(Long::longValue).sum() / gaps.size();
+                // Penalización: gap promedio >5 min reduce score
+                penalizacionGaps = (int) Math.min(30, Math.max(0, (gapPromedio - 5) * 5));
+            }
+        }
+
+        // Score final ponderado
+        int scoreFinal = (int) ((scoreMensajes * 0.4) + (scoreLongitud * 0.4)) - penalizacionGaps;
+        scoreFinal = Math.max(0, Math.min(100, scoreFinal));
+
+        resultado.put("score", scoreFinal);
+        resultado.put("nivel", calcularNivelParticipacion(scoreFinal));
+        resultado.put("clase", scoreFinal >= 70 ? "verde" : scoreFinal >= 40 ? "amarillo" : "rojo");
+        resultado.put("mensajes", cantidadMensajes);
+        resultado.put("longitudPromedio", (int) longitudPromedio);
+        resultado.put("gapPromedio", gapPromedio);
+
+        return resultado;
+    }
+
+    private String calcularNivelParticipacion(int score) {
+        if (score >= 70) return "Alto";
+        if (score >= 40) return "Medio";
+        if (score > 0)   return "Bajo";
+        return "Sin datos";
     }
 
     private long calcularRacha(List<Sesion> sesiones) {

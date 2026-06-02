@@ -36,6 +36,8 @@
         .stat-card.amarillo .value { color: #f59e0b; }
         .stat-card.rojo { border-top-color: #ef4444; }
         .stat-card.rojo .value { color: #ef4444; }
+        .stat-card.azul { border-top-color: #3b82f6; }
+        .stat-card.azul .value { color: #3b82f6; }
 
         .tema-card {
             background: white; border-radius: 12px; padding: 20px;
@@ -99,7 +101,6 @@
         .badge-atrasado { background: #fef2f2; color: #dc2626; }
         .badge-pendiente { background: #f1f5f9; color: #64748b; }
 
-        /* Lecciones dentro de objetivo */
         .lecciones-container {
             margin-top: 10px;
             margin-left: 36px;
@@ -131,6 +132,33 @@
         }
         .sin-dato { color: #aaa; font-style: italic; font-size: 0.875rem; }
 
+        /* Participación */
+        .participacion-row {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 10px; flex-wrap: wrap;
+        }
+        .badge-participacion {
+            font-size: 0.78rem; padding: 4px 12px; border-radius: 20px;
+            font-weight: bold; white-space: nowrap;
+        }
+        .badge-p-verde  { background: #dcfce7; color: #16a34a; }
+        .badge-p-amarillo { background: #fef9c3; color: #a16207; }
+        .badge-p-rojo   { background: #fef2f2; color: #dc2626; }
+        .badge-p-gris   { background: #f1f5f9; color: #64748b; }
+        .participacion-detalle {
+            font-size: 0.75rem; color: #888;
+        }
+        .participacion-bar-bg {
+            background: #f0f2f5; border-radius: 99px; height: 6px;
+            width: 120px; display: inline-block; vertical-align: middle; margin-left: 4px;
+        }
+        .participacion-bar-fill {
+            border-radius: 99px; height: 6px; transition: width 0.5s;
+        }
+        .fill-verde   { background: #22c55e; }
+        .fill-amarillo { background: #f59e0b; }
+        .fill-rojo    { background: #ef4444; }
+
         .perfil-card {
             background: white; border-radius: 12px; padding: 20px;
             margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
@@ -145,11 +173,13 @@
         .border-verde { border-left-color: #22c55e; }
     </style>
     <script>
-        document.querySelectorAll('.sesion-card pre').forEach(pre => {
-            pre.textContent = pre.textContent
-                .replace(/\*\*/g, '')
-                .replace(/\*/g, '')
-                .trim();
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.sesion-card pre').forEach(pre => {
+                pre.textContent = pre.textContent
+                    .replace(/\*\*/g, '')
+                    .replace(/\*/g, '')
+                    .trim();
+            });
         });
     </script>
 </head>
@@ -191,6 +221,11 @@
             <div class="label">Comprensión semana</div>
             <div class="value" th:text="${promedioComprension} + '/10'">0</div>
         </div>
+        <!-- Nuevo: participación semana -->
+        <div class="stat-card azul">
+            <div class="label">Participación semana</div>
+            <div class="value" th:text="${promedioParticipacion}">--</div>
+        </div>
     </div>
 
     <!-- Tema actual -->
@@ -209,7 +244,7 @@
         </div>
     </div>
 
-    <!-- Plan de estudios con semáforo y lecciones -->
+    <!-- Plan de estudios -->
     <div th:if="${fases != null and not #lists.isEmpty(fases)}">
         <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
         <div th:each="fase : ${fases}">
@@ -241,8 +276,6 @@
                                                  (${obj.estado == 'atrasado'} ? 'badge-atrasado' : 'badge-pendiente'))"
                                   th:text="${obj.etiqueta}">Estado</span>
                         </div>
-
-                        <!-- Lecciones completadas -->
                         <div class="lecciones-container"
                              th:if="${leccionesPorSemana != null and leccionesPorSemana[obj.numeroSemana] != null}">
                             <div th:each="lec : ${leccionesPorSemana[obj.numeroSemana]}"
@@ -258,8 +291,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Sin lecciones aún en progreso -->
                         <div class="lecciones-container"
                              th:if="${leccionesPorSemana != null and leccionesPorSemana[obj.numeroSemana] == null and obj.estado == 'progreso'}">
                             <div class="leccion-item pendiente">
@@ -282,16 +313,16 @@
             <div class="sesion-card" th:classappend="${examen.reprobado} ? 'border-rojo' : 'border-verde'">
                 <div class="fecha" th:text="${examen.fecha}"></div>
                 <div style="display:flex; gap:16px; margin-bottom:8px;">
-                <span style="font-size:1.2rem; font-weight:bold;"
-                      th:text="'Calificación: ' + ${examen.calificacion}"></span>
+                    <span style="font-size:1.2rem; font-weight:bold;"
+                          th:text="'Calificación: ' + ${examen.calificacion}"></span>
                     <span th:if="${examen.reprobado}"
                           style="background:#fef2f2; color:#dc2626; padding:2px 10px; border-radius:20px; font-size:0.8rem;">
-                    Reprobado — Repasar fin de semana
-                </span>
+                        Reprobado — Repasar fin de semana
+                    </span>
                     <span th:if="${!examen.reprobado}"
                           style="background:#dcfce7; color:#16a34a; padding:2px 10px; border-radius:20px; font-size:0.8rem;">
-                    Aprobado ✅
-                </span>
+                        Aprobado ✅
+                    </span>
                 </div>
                 <div style="font-size:0.85rem; color:#555;">
                     <div th:if="${examen.matematicas}" th:text="'📐 ' + ${examen.matematicas}"></div>
@@ -316,16 +347,60 @@
     <div class="section-title">📋 Sesión de hoy</div>
     <div class="sesion-card" th:if="${sesionHoyFormateada != null}">
         <div class="fecha" th:text="${sesionHoyFormateada.fechaInicio} + ' — ' + ${sesionHoyFormateada.fechaFin}"></div>
+
+        <!-- Participación sesión de hoy -->
+        <div class="participacion-row" th:if="${sesionHoyFormateada.participacion != null}">
+            <span class="badge-participacion"
+                  th:classappend="${sesionHoyFormateada.participacion.clase == 'verde'} ? 'badge-p-verde' :
+                                  (${sesionHoyFormateada.participacion.clase == 'amarillo'} ? 'badge-p-amarillo' :
+                                  (${sesionHoyFormateada.participacion.clase == 'rojo'} ? 'badge-p-rojo' : 'badge-p-gris'))"
+                  th:text="'Participación: ' + ${sesionHoyFormateada.participacion.nivel}">
+            </span>
+            <div class="participacion-bar-bg">
+                <div class="participacion-bar-fill"
+                     th:classappend="${sesionHoyFormateada.participacion.clase == 'verde'} ? 'fill-verde' :
+                                     (${sesionHoyFormateada.participacion.clase == 'amarillo'} ? 'fill-amarillo' : 'fill-rojo')"
+                     th:style="'width:' + ${sesionHoyFormateada.participacion.score} + '%'">
+                </div>
+            </div>
+            <span class="participacion-detalle"
+                  th:text="${sesionHoyFormateada.participacion.mensajes} + ' msgs · ~' +
+                            ${sesionHoyFormateada.participacion.longitudPromedio} + ' chars/msg'">
+            </span>
+        </div>
+
         <pre th:if="${sesionHoyFormateada.reporte != null}" th:text="${sesionHoyFormateada.reporte}"></pre>
         <p class="sin-dato" th:if="${sesionHoyFormateada.reporte == null}">Sesión en curso o sin reporte aún.</p>
     </div>
     <p class="sin-dato" th:if="${sesionHoyFormateada == null}">No hubo sesión hoy.</p>
 
-    <!-- Historial -->
+    <!-- Historial 7 días -->
     <div class="section-title">📆 Últimos 7 días</div>
     <div th:each="sesion : ${sesionesFormateadas}">
         <div class="sesion-card">
             <div class="fecha" th:text="${sesion.fechaInicio} + ' — ' + ${sesion.fechaFin}"></div>
+
+            <!-- Participación por sesión -->
+            <div class="participacion-row" th:if="${sesion.participacion != null}">
+                <span class="badge-participacion"
+                      th:classappend="${sesion.participacion.clase == 'verde'} ? 'badge-p-verde' :
+                                      (${sesion.participacion.clase == 'amarillo'} ? 'badge-p-amarillo' :
+                                      (${sesion.participacion.clase == 'rojo'} ? 'badge-p-rojo' : 'badge-p-gris'))"
+                      th:text="'Participación: ' + ${sesion.participacion.nivel}">
+                </span>
+                <div class="participacion-bar-bg">
+                    <div class="participacion-bar-fill"
+                         th:classappend="${sesion.participacion.clase == 'verde'} ? 'fill-verde' :
+                                         (${sesion.participacion.clase == 'amarillo'} ? 'fill-amarillo' : 'fill-rojo')"
+                         th:style="'width:' + ${sesion.participacion.score} + '%'">
+                    </div>
+                </div>
+                <span class="participacion-detalle"
+                      th:text="${sesion.participacion.mensajes} + ' msgs · ~' +
+                                ${sesion.participacion.longitudPromedio} + ' chars/msg'">
+                </span>
+            </div>
+
             <pre th:if="${sesion.reporte != null}" th:text="${sesion.reporte}"></pre>
             <p class="sin-dato" th:if="${sesion.reporte == null}">Sin reporte en esta sesión.</p>
         </div>

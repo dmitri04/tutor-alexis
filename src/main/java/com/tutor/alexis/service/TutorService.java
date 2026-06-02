@@ -62,8 +62,8 @@ public class TutorService {
 
         String systemPrompt = obtenerSystemPrompt();
 
-        List<Map<String, Object>> historialRecortado = historialActivo.size() > 20
-                ? new ArrayList<>(historialActivo.subList(historialActivo.size() - 20, historialActivo.size()))
+        List<Map<String, Object>> historialRecortado = historialActivo.size() > 40
+                ? new ArrayList<>(historialActivo.subList(historialActivo.size() - 40, historialActivo.size()))
                 : historialActivo;
 
         String respuesta = claudeService.enviarConversacionCompleta(systemPrompt, historialRecortado);
@@ -91,7 +91,11 @@ public class TutorService {
 
     private void persistirHistorial() {
         try {
-            String historialStr = objectMapper.writeValueAsString(historialActivo);
+            List<Map<String, Object>> historialParaGuardar = historialActivo.size() > 40
+                    ? new ArrayList<>(historialActivo.subList(
+                    historialActivo.size() - 40, historialActivo.size()))
+                    : historialActivo;
+            String historialStr = objectMapper.writeValueAsString(historialParaGuardar);
             sesionRepository.findById(sesionActivaId).ifPresent(s -> {
                 s.setHistorialJson(historialStr);
                 sesionRepository.save(s);
