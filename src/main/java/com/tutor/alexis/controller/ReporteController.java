@@ -185,7 +185,9 @@ public class ReporteController {
                 .mapToInt(Integer::intValue)
                 .average()
                 .orElse(0);
-        model.addAttribute("promedioParticipacion", calcularNivelParticipacion((int) promedioParticipacion));
+        int scorePromedio = (int) promedioParticipacion;
+        String nivelPromedio = scorePromedio >= 100 ? "Alto" : scorePromedio >= 50 ? "Medio" : "Bajo";
+        model.addAttribute("promedioParticipacion", nivelPromedio);
         model.addAttribute("promedioParticipacionScore", (int) promedioParticipacion);
 
         // Formatear sesión de hoy con participación
@@ -208,11 +210,8 @@ public class ReporteController {
     }
 
     /**
-     * Calcula el índice de participación de Alexis en una sesión.
-     * Score 0-100 basado en:
-     * - Cantidad de mensajes del usuario (40%)
-     * - Longitud promedio de sus mensajes (40%)
-     * - Gaps de tiempo entre mensajes (20% penalización)
+     * Calcula participación objetiva de Alexis en una sesión.
+     * Muestra datos directos: respuestas enviadas + tiempo de respuesta promedio.
      */
     private Map<String, Object> calcularParticipacion(Long sesionId) {
         Map<String, Object> resultado = new HashMap<>();
@@ -224,62 +223,57 @@ public class ReporteController {
 
         if (mensajesAlexis.isEmpty()) {
             resultado.put("score", 0);
-            resultado.put("nivel", "Sin datos");
+            resultado.put("respuestas", 0);
+            resultado.put("tiempoRespuesta", 0);
             resultado.put("clase", "gris");
-            resultado.put("mensajes", 0);
-            resultado.put("longitudPromedio", 0);
-            resultado.put("gapPromedio", 0);
+            resultado.put("icono", "❓");
             return resultado;
         }
 
-        // Factor 1: cantidad de mensajes (ideal: 15-25 en 40 min)
-        int cantidadMensajes = mensajesAlexis.size();
-        int scoreMensajes = Math.min(100, (cantidadMensajes * 100) / 20); // 20 mensajes = 100%
+        int respuestas = mensajesAlexis.size();
 
-        // Factor 2: longitud promedio de mensajes (ideal: >50 chars = razona, explica)
-        double longitudPromedio = mensajesAlexis.stream()
-                .mapToInt(m -> m.getContenido() != null ? m.getContenido().length() : 0)
-                .average()
-                .orElse(0);
-        int scoreLongitud = (int) Math.min(100, (longitudPromedio * 100) / 80); // 80 chars = 100%
-
-        // Factor 3: gaps entre mensajes (penaliza gaps >5 min)
-        long gapPromedio = 0;
-        int penalizacionGaps = 0;
-        if (mensajes.size() > 1) {
-            List<Long> gaps = new ArrayList<>();
-            for (int i = 1; i < mensajes.size(); i++) {
-                long gap = ChronoUnit.MINUTES.between(
-                        mensajes.get(i-1).getTimestamp(),
-                        mensajes.get(i).getTimestamp());
-                if (gap > 0 && gap < 30) gaps.add(gap); // ignora gaps >30 min (descansos)
-            }
-            if (!gaps.isEmpty()) {
-                gapPromedio = gaps.stream().mapToLong(Long::longValue).sum() / gaps.size();
-                // Penalización: gap promedio >5 min reduce score
-                penalizacionGaps = (int) Math.min(30, Math.max(0, (gapPromedio - 5) * 5));
+        // Tiempo promedio de respuesta en segundos: gap entre mensaje tutor → respuesta Alexis
+        List<Long> tiemposRespuesta = new ArrayList<>();
+        for (int i = 1; i < mensajes.size(); i++) {
+            Mensaje anterior = mensajes.get(i - 1);
+            Mensaje actual   = mensajes.get(i);
+            if ("assistant".equals(anterior.getRol()) && "user".equals(actual.getRol())) {
+                long gapSeg = ChronoUnit.SECONDS.between(
+                        anterior.getTimestamp(), actual.getTimestamp());
+                if (gapSeg >= 0 && gapSeg < 1200) // ignora gaps >20 min (descansos reales)
+                    tiemposRespuesta.add(gapSeg);
             }
         }
 
-        // Score final ponderado
-        int scoreFinal = (int) ((scoreMensajes * 0.4) + (scoreLongitud * 0.4)) - penalizacionGaps;
-        scoreFinal = Math.max(0, Math.min(100, scoreFinal));
+        long tiempoPromedioSeg = tiemposRespuesta.isEmpty() ? 0 :
+                tiemposRespuesta.stream().mapToLong(Long::longValue).sum() / tiemposRespuesta.size();
 
-        resultado.put("score", scoreFinal);
-        resultado.put("nivel", calcularNivelParticipacion(scoreFinal));
-        resultado.put("clase", scoreFinal >= 70 ? "verde" : scoreFinal >= 40 ? "amarillo" : "rojo");
-        resultado.put("mensajes", cantidadMensajes);
-        resultado.put("longitudPromedio", (int) longitudPromedio);
-        resultado.put("gapPromedio", gapPromedio);
+        // Formato legible: "<1 min", "1 min", "2 min", etc.
+        String tiempoTexto = tiempoPromedioSeg < 60
+                ? tiempoPromedioSeg + " seg"
+                : (tiempoPromedioSeg / 60) + " min";
+
+        // Clasificación objetiva (usando segundos)
+        boolean trabajoBien   = respuestas >= 8 && tiempoPromedioSeg <= 300; // ≤5 min
+        boolean trabajoDudoso = respuestas >= 5 || tiempoPromedioSeg <= 480; // ≤8 min
+
+        String clase, icono;
+        int score;
+        if (trabajoBien) {
+            clase = "verde";   icono = "✅"; score = 100;
+        } else if (trabajoDudoso) {
+            clase = "amarillo"; icono = "⚠️"; score = 50;
+        } else {
+            clase = "rojo";    icono = "❌"; score = 10;
+        }
+
+        resultado.put("score", score);
+        resultado.put("respuestas", respuestas);
+        resultado.put("tiempoRespuesta", tiempoTexto);
+        resultado.put("clase", clase);
+        resultado.put("icono", icono);
 
         return resultado;
-    }
-
-    private String calcularNivelParticipacion(int score) {
-        if (score >= 70) return "Alto";
-        if (score >= 40) return "Medio";
-        if (score > 0)   return "Bajo";
-        return "Sin datos";
     }
 
     private long calcularRacha(List<Sesion> sesiones) {

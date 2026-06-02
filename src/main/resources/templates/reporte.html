@@ -354,18 +354,9 @@
                   th:classappend="${sesionHoyFormateada.participacion.clase == 'verde'} ? 'badge-p-verde' :
                                   (${sesionHoyFormateada.participacion.clase == 'amarillo'} ? 'badge-p-amarillo' :
                                   (${sesionHoyFormateada.participacion.clase == 'rojo'} ? 'badge-p-rojo' : 'badge-p-gris'))"
-                  th:text="'Participación: ' + ${sesionHoyFormateada.participacion.nivel}">
-            </span>
-            <div class="participacion-bar-bg">
-                <div class="participacion-bar-fill"
-                     th:classappend="${sesionHoyFormateada.participacion.clase == 'verde'} ? 'fill-verde' :
-                                     (${sesionHoyFormateada.participacion.clase == 'amarillo'} ? 'fill-amarillo' : 'fill-rojo')"
-                     th:style="'width:' + ${sesionHoyFormateada.participacion.score} + '%'">
-                </div>
-            </div>
-            <span class="participacion-detalle"
-                  th:text="${sesionHoyFormateada.participacion.mensajes} + ' msgs · ~' +
-                            ${sesionHoyFormateada.participacion.longitudPromedio} + ' chars/msg'">
+                  th:text="${sesionHoyFormateada.participacion.icono} + ' ' +
+                            ${sesionHoyFormateada.participacion.respuestas} + ' respuestas · ⏱ ' +
+                            ${sesionHoyFormateada.participacion.tiempoRespuesta} + ' min promedio'">
             </span>
         </div>
 
@@ -386,18 +377,9 @@
                       th:classappend="${sesion.participacion.clase == 'verde'} ? 'badge-p-verde' :
                                       (${sesion.participacion.clase == 'amarillo'} ? 'badge-p-amarillo' :
                                       (${sesion.participacion.clase == 'rojo'} ? 'badge-p-rojo' : 'badge-p-gris'))"
-                      th:text="'Participación: ' + ${sesion.participacion.nivel}">
-                </span>
-                <div class="participacion-bar-bg">
-                    <div class="participacion-bar-fill"
-                         th:classappend="${sesion.participacion.clase == 'verde'} ? 'fill-verde' :
-                                         (${sesion.participacion.clase == 'amarillo'} ? 'fill-amarillo' : 'fill-rojo')"
-                         th:style="'width:' + ${sesion.participacion.score} + '%'">
-                    </div>
-                </div>
-                <span class="participacion-detalle"
-                      th:text="${sesion.participacion.mensajes} + ' msgs · ~' +
-                                ${sesion.participacion.longitudPromedio} + ' chars/msg'">
+                      th:text="${sesion.participacion.icono} + ' ' +
+                                ${sesion.participacion.respuestas} + ' respuestas · ⏱ ' +
+                                ${sesion.participacion.tiempoRespuesta} + ' min promedio'">
                 </span>
             </div>
 
