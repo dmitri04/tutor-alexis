@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tutor.alexis.config.SystemPromptConfig;
 import com.tutor.alexis.model.*;
+import com.tutor.alexis.model.ExamenResultado;
+import com.tutor.alexis.repository.ExamenResultadoRepository;
 import com.tutor.alexis.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,11 +26,13 @@ public class TutorService {
     @Autowired private EmailService emailService;
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
     @Autowired private LeccionCompletadaRepository leccionRepository;
+    @Autowired private ExamenResultadoRepository examenRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private Long sesionActivaId = null;
     private List<Map<String, Object>> historialActivo = new ArrayList<>();
     private LocalDateTime inicioSesion = null;
+    private int erroresConsecutivos = 0;
 
     public String procesarMensaje(String mensajeUsuario) {
         return procesarMensajeConImagen(mensajeUsuario, null, null);
@@ -61,7 +65,16 @@ public class TutorService {
         List<Map<String, Object>> historialRecortado = historialActivo.size() > 20
                 ? new ArrayList<>(historialActivo.subList(historialActivo.size() - 20, historialActivo.size()))
                 : historialActivo;
+
         String respuesta = claudeService.enviarConversacionCompleta(systemPrompt, historialRecortado);
+
+        // Detectar errores de conexión
+        if (respuesta.contains("Sin conexión") || respuesta.contains("Failed to resolve")) {
+            erroresConsecutivos++;
+            System.err.println("🚨 ERROR CONEXIÓN #" + erroresConsecutivos + " — Alexis no puede estudiar");
+        } else {
+            erroresConsecutivos = 0;
+        }
 
         guardarMensaje(sesionActivaId, "assistant", respuesta);
         historialActivo.add(Map.of("role", "assistant", "content", respuesta));
@@ -306,7 +319,34 @@ public class TutorService {
         if (respuesta.contains("REPORTE_EXAMEN_START")) {
             String reporte = extraerBloque(respuesta, "REPORTE_EXAMEN_START", "REPORTE_EXAMEN_END");
             String fecha = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-            emailService.enviarResultadoExamen(reporte, fecha, extraerCalificacion(reporte));
+            String calificacion = extraerCalificacion(reporte);
+            emailService.enviarResultadoExamen(reporte, fecha, calificacion);
+
+            // Guardar examen en BD
+            try {
+                ExamenResultado examen = new ExamenResultado();
+                examen.setFecha(LocalDate.now());
+                examen.setCalificacion(calificacion);
+
+                for (String linea : reporte.split("\n")) {
+                    linea = linea.trim();
+                    if (linea.startsWith("Matemáticas:"))
+                        examen.setMatematicas(linea.replace("Matemáticas:", "").trim());
+                    if (linea.startsWith("Verbal:"))
+                        examen.setVerbal(linea.replace("Verbal:", "").trim());
+                    if (linea.startsWith("Errores clave:"))
+                        examen.setErroresClave(linea.replace("Errores clave:", "").trim());
+                    if (linea.startsWith("Recomendación:"))
+                        examen.setRecomendacion(linea.replace("Recomendación:", "").trim());
+                    if (linea.startsWith("Reprobado:"))
+                        examen.setReprobado(linea.contains("sí") || linea.contains("si"));
+                }
+
+                examenRepository.save(examen);
+                System.out.println("Examen guardado: " + calificacion);
+            } catch (Exception e) {
+                System.err.println("Error guardando examen: " + e.getMessage());
+            }
         }
     }
 

@@ -1,13 +1,7 @@
 package com.tutor.alexis.controller;
 
-import com.tutor.alexis.model.ObjetivoEstudio;
-import com.tutor.alexis.model.PerfilEstudiante;
-import com.tutor.alexis.model.Sesion;
-import com.tutor.alexis.model.LeccionCompletada;
-import com.tutor.alexis.repository.LeccionCompletadaRepository;
-import com.tutor.alexis.repository.ObjetivoEstudioRepository;
-import com.tutor.alexis.repository.PerfilEstudianteRepository;
-import com.tutor.alexis.repository.SesionRepository;
+import com.tutor.alexis.model.*;
+import com.tutor.alexis.repository.*;
 import com.tutor.alexis.service.ClaudeService;
 import com.tutor.alexis.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +26,7 @@ public class ReporteController {
     @Autowired private ClaudeService claudeService;
     @Autowired private EmailService emailService;
     @Autowired private LeccionCompletadaRepository leccionRepository;
+    @Autowired private ExamenResultadoRepository examenRepository;
 
     @GetMapping("/reporte")
     public String reporte(Model model) {
@@ -188,6 +183,9 @@ public class ReporteController {
         } else {
             model.addAttribute("sesionHoyFormateada", null);
         }
+
+        List<ExamenResultado> examenes = examenRepository.findAllByOrderByFechaDesc();
+        model.addAttribute("examenes", examenes);
 
         return "reporte";
     }

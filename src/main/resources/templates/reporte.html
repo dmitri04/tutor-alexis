@@ -140,6 +140,9 @@
             display: inline-block; background: #e94560; color: white;
             padding: 3px 12px; border-radius: 20px; font-size: 0.75rem; margin-bottom: 12px;
         }
+
+        .border-rojo { border-left-color: #ef4444; }
+        .border-verde { border-left-color: #22c55e; }
     </style>
     <script>
         document.querySelectorAll('.sesion-card pre').forEach(pre => {
@@ -267,6 +270,34 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exámenes -->
+    <div th:if="${examenes != null and not #lists.isEmpty(examenes)}">
+        <div class="section-title">📊 Historial de Exámenes</div>
+        <div th:each="examen : ${examenes}">
+            <div class="sesion-card" th:classappend="${examen.reprobado} ? 'border-rojo' : 'border-verde'">
+                <div class="fecha" th:text="${examen.fecha}"></div>
+                <div style="display:flex; gap:16px; margin-bottom:8px;">
+                <span style="font-size:1.2rem; font-weight:bold;"
+                      th:text="'Calificación: ' + ${examen.calificacion}"></span>
+                    <span th:if="${examen.reprobado}"
+                          style="background:#fef2f2; color:#dc2626; padding:2px 10px; border-radius:20px; font-size:0.8rem;">
+                    Reprobado — Repasar fin de semana
+                </span>
+                    <span th:if="${!examen.reprobado}"
+                          style="background:#dcfce7; color:#16a34a; padding:2px 10px; border-radius:20px; font-size:0.8rem;">
+                    Aprobado ✅
+                </span>
+                </div>
+                <div style="font-size:0.85rem; color:#555;">
+                    <div th:if="${examen.matematicas}" th:text="'📐 ' + ${examen.matematicas}"></div>
+                    <div th:if="${examen.verbal}" th:text="'📖 ' + ${examen.verbal}"></div>
+                    <div th:if="${examen.erroresClave}" th:text="'❌ ' + ${examen.erroresClave}"></div>
+                    <div th:if="${examen.recomendacion}" th:text="'💡 ' + ${examen.recomendacion}"></div>
                 </div>
             </div>
         </div>

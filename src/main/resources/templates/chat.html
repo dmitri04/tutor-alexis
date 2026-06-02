@@ -488,7 +488,13 @@
             });
             const data = await response.json();
             ocultarTyping();
+            if (data.respuesta.includes('Sin conexión') || data.respuesta.includes('⚠️')) {
+            agregarMensaje('⚠️ El tutor no está disponible. Avisa a tu papá.', 'sistema');
+            inputMensaje.disabled = true;
+            btnEnviar.disabled = true;
+        } else {
             agregarMensaje(data.respuesta, 'tutor');
+        }
         } catch (error) {
             ocultarTyping();
             agregarMensaje('Hubo un error. Intenta de nuevo.', 'sistema');
