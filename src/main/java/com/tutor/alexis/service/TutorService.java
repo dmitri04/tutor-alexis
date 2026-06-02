@@ -171,7 +171,7 @@ public class TutorService {
                 .findByFechaInicioAfterOrderByFechaInicioDesc(
                         LocalDateTime.now().withHour(0).withMinute(0))
                 .stream()
-                .filter(s -> s.getReporte() != null)
+                .filter(s -> s.getReporte() != null && Boolean.TRUE.equals(s.getCierreVoluntario()))
                 .count();
 
         long diasEstudiados = sesionRepository.findAllByOrderByFechaInicioDesc()
