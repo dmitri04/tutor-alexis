@@ -13,7 +13,7 @@
 
     <groupId>com.tutor</groupId>
     <artifactId>alexis</artifactId>
-    <version>1.0.7</version>
+    <version>1.0.8</version>
     <name>Tutor Alexis</name>
 
     <properties>

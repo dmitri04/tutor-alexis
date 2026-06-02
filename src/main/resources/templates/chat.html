@@ -498,8 +498,12 @@
         }
     }
 
+    let sesionCerrada = false;
     async function cerrarSesion() {
+        if (sesionCerrada) return;
+        sesionCerrada = true;
         clearInterval(timerInterval);
+
         const resp = await fetch('/cerrar-sesion', { method: 'POST' });
         const data = await resp.json();
         console.log('Sesión cerrada:', data);
