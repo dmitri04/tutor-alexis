@@ -159,7 +159,7 @@ public class TutorService {
                                 "La sesión terminó. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
                         String reporteAuto = claudeService.enviarConversacionCompleta(
                                 obtenerSystemPrompt(), historialConCierre);
-                        procesarBloqueReporte(reporteAuto);
+                        procesarBloqueReporteConId(reporteAuto, idParaCerrar);
                     } catch (Exception e) {
                         System.err.println("Error generando reporte automático: " + e.getMessage());
                     }
@@ -377,6 +377,17 @@ public class TutorService {
         mensajeRepository.save(msg);
     }
 
+    private void procesarBloqueReporteConId(String respuesta, Long sesionId) {
+        if (respuesta.contains("REPORTE_SESION_START")) {
+            String reporte = extraerBloque(respuesta, "REPORTE_SESION_START", "REPORTE_SESION_END");
+            sesionRepository.findById(sesionId).ifPresent(sesion -> {
+                sesion.setReporte(reporte);
+                sesionRepository.save(sesion);
+            });
+            guardarLeccionCompletada(reporte);
+        }
+    }
+
     public boolean isDiagnosticoCompletado() {
         return perfilRepository.findFirstByOrderByIdAsc()
                 .map(PerfilEstudiante::getDiagnosticoCompletado)
@@ -395,4 +406,6 @@ public class TutorService {
     public Long getSesionActivaId() {
         return sesionActivaId;
     }
+
+
 }
