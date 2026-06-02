@@ -141,6 +141,14 @@
             padding: 3px 12px; border-radius: 20px; font-size: 0.75rem; margin-bottom: 12px;
         }
     </style>
+    <script>
+        document.querySelectorAll('.sesion-card pre').forEach(pre => {
+            pre.textContent = pre.textContent
+                .replace(/\*\*/g, '')
+                .replace(/\*/g, '')
+                .trim();
+        });
+    </script>
 </head>
 <body>
 
