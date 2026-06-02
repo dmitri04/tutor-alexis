@@ -193,8 +193,21 @@ public class TutorService {
                 .distinct()
                 .count();
 
-        String contextoHoy = "Lecciones completadas hoy: " + leccionesHoy + " de 4.\n" +
-                "Días estudiados en total: " + diasEstudiados + ".\n";
+        StringBuilder contextoHoy = new StringBuilder();
+        contextoHoy.append("Lecciones completadas hoy: ").append(leccionesHoy).append(" de 4.\n");
+        contextoHoy.append("Días estudiados en total: ").append(diasEstudiados).append(".\n");
+
+        // Inyectar última lección completada para dar continuidad entre sesiones
+        List<LeccionCompletada> lecciones = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc();
+        if (!lecciones.isEmpty()) {
+            LeccionCompletada ultima = lecciones.get(0);
+            contextoHoy.append("Última lección completada: ")
+                    .append(ultima.getTema() != null ? ultima.getTema() : "sin tema")
+                    .append(" — Nivel: ").append(ultima.getNivelComprension()).append("/10")
+                    .append(" — Logro: ").append(ultima.getLogro() != null ? ultima.getLogro() : "-")
+                    .append(" — Área a reforzar: ").append(ultima.getAreaReforzar() != null ? ultima.getAreaReforzar() : "-")
+                    .append(".\n");
+        }
 
         Optional<PerfilEstudiante> perfilOpt = perfilRepository.findFirstByOrderByIdAsc();
         if (perfilOpt.isPresent() && perfilOpt.get().getDiagnosticoCompletado()) {
@@ -406,6 +419,4 @@ public class TutorService {
     public Long getSesionActivaId() {
         return sesionActivaId;
     }
-
-
 }
