@@ -71,7 +71,7 @@ public class TutorService {
         // Detectar errores de conexión
         if (respuesta.contains("Sin conexión") || respuesta.contains("Failed to resolve")) {
             erroresConsecutivos++;
-            System.err.println("🚨 ERROR CONEXIÓN #" + erroresConsecutivos + " — Alexis no puede estudiar");
+            System.err.println("🚨 ERROR CONEXIÓN #" + erroresConsecutivos + " - Alexis no puede estudiar");
         } else {
             erroresConsecutivos = 0;
         }
@@ -171,7 +171,7 @@ public class TutorService {
 
                 sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal ->
                         System.out.println("Sesión cerrada: " + idParaCerrar +
-                                " — reporte: " + (sesionFinal.getReporte() != null ? "OK" : "FALTA"))
+                                " - reporte: " + (sesionFinal.getReporte() != null ? "OK" : "FALTA"))
                 );
             });
 
