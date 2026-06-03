@@ -171,7 +171,7 @@ public class TutorService {
 
                 sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal ->
                         System.out.println("Sesión cerrada: " + idParaCerrar +
-                                " — reporte: " + (sesionFinal.getReporte() != null ? "✅" : "❌"))
+                                " — reporte: " + (sesionFinal.getReporte() != null ? "OK" : "FALTA"))
                 );
             });
 
