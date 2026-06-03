@@ -198,7 +198,7 @@ public class TutorService {
                 .count();
 
         StringBuilder contextoHoy = new StringBuilder();
-        contextoHoy.append("Lecciones completadas hoy: ").append(leccionesHoy).append(" de 4.\n");
+        contextoHoy.append("Lecciones completadas hoy: ").append(leccionesHoy).append(" de 5.\n");
         contextoHoy.append("Días estudiados en total: ").append(diasEstudiados).append(".\n");
 
         // Inyectar última lección completada para dar continuidad entre sesiones
