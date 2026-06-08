@@ -203,7 +203,23 @@ public class ReporteController {
             model.addAttribute("sesionHoyFormateada", null);
         }
 
-        List<ExamenResultado> examenes = examenRepository.findAllByOrderByFechaDesc();
+        // Enriquecer exámenes con porcentajes para barras visuales
+        List<ExamenResultado> examenesRaw = examenRepository.findAllByOrderByFechaDesc();
+        List<Map<String, Object>> examenes = new ArrayList<>();
+        for (ExamenResultado ex : examenesRaw) {
+            Map<String, Object> exMap = new HashMap<>();
+            exMap.put("fecha", ex.getFecha());
+            exMap.put("calificacion", ex.getCalificacion());
+            exMap.put("matematicas", ex.getMatematicas());
+            exMap.put("verbal", ex.getVerbal());
+            exMap.put("erroresClave", ex.getErroresClave());
+            exMap.put("recomendacion", ex.getRecomendacion());
+            exMap.put("reprobado", ex.getReprobado());
+            // Extraer X de "X/5 — observación" para calcular porcentaje de barra
+            exMap.put("pctMat", extraerPorcentajeBarra(ex.getMatematicas()));
+            exMap.put("pctVer", extraerPorcentajeBarra(ex.getVerbal()));
+            examenes.add(exMap);
+        }
         model.addAttribute("examenes", examenes);
 
         return "reporte";
@@ -274,6 +290,18 @@ public class ReporteController {
         resultado.put("icono", icono);
 
         return resultado;
+    }
+
+    /**
+     * Extrae el número de "X/5 — observación" y devuelve porcentaje 0-100
+     */
+    private int extraerPorcentajeBarra(String valor) {
+        if (valor == null || valor.isEmpty()) return 0;
+        try {
+            String parte = valor.split("/")[0].trim();
+            int num = Integer.parseInt(parte);
+            return Math.min(100, num * 20); // X/5 → porcentaje sobre 100
+        } catch (Exception e) { return 0; }
     }
 
     private long calcularRacha(List<Sesion> sesiones) {

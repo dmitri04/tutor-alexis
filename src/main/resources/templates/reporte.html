@@ -171,6 +171,55 @@
 
         .border-rojo { border-left-color: #ef4444; }
         .border-verde { border-left-color: #22c55e; }
+        /* Examen card */
+        .examen-card {
+            background: white; border-radius: 12px; padding: 24px;
+            margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 5px solid #22c55e;
+        }
+        .examen-reprobado { border-left-color: #ef4444; }
+        .examen-aprobado  { border-left-color: #22c55e; }
+
+        .examen-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 16px;
+        }
+        .examen-fecha { font-size: 0.85rem; color: #888; }
+        .examen-badge {
+            font-size: 0.8rem; font-weight: bold;
+            padding: 4px 14px; border-radius: 20px;
+        }
+        .badge-aprobado  { background: #dcfce7; color: #16a34a; }
+        .badge-reprobado { background: #fef2f2; color: #dc2626; }
+
+        .examen-calificacion-row {
+            display: flex; align-items: baseline; gap: 8px; margin-bottom: 20px;
+        }
+        .examen-cal-numero {
+            font-size: 3rem; font-weight: bold; line-height: 1;
+        }
+        .cal-verde { color: #22c55e; }
+        .cal-rojo  { color: #ef4444; }
+        .examen-cal-label { font-size: 0.85rem; color: #888; }
+
+        .examen-barras { margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+        .examen-barra-row {
+            display: flex; align-items: center; gap: 12px;
+        }
+        .examen-barra-label { font-size: 0.82rem; width: 130px; color: #555; flex-shrink: 0; }
+        .examen-barra-bg {
+            flex: 1; background: #f0f2f5; border-radius: 99px; height: 10px;
+        }
+        .examen-barra-fill { height: 10px; border-radius: 99px; transition: width 0.5s; }
+        .barra-mat { background: #3b82f6; }
+        .barra-ver { background: #a855f7; }
+        .examen-barra-valor { font-size: 0.78rem; color: #888; width: 160px; flex-shrink: 0; }
+
+        .examen-detalle { margin-top: 12px; }
+        .examen-detalle-titulo { font-size: 0.78rem; font-weight: bold; color: #555; margin-bottom: 4px; }
+        .examen-detalle-texto { font-size: 0.85rem; color: #666; line-height: 1.6; }
+
+
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -310,26 +359,56 @@
     <div th:if="${examenes != null and not #lists.isEmpty(examenes)}">
         <div class="section-title">📊 Historial de Exámenes</div>
         <div th:each="examen : ${examenes}">
-            <div class="sesion-card" th:classappend="${examen.reprobado} ? 'border-rojo' : 'border-verde'">
-                <div class="fecha" th:text="${examen.fecha}"></div>
-                <div style="display:flex; gap:16px; margin-bottom:8px;">
-                    <span style="font-size:1.2rem; font-weight:bold;"
-                          th:text="'Calificación: ' + ${examen.calificacion}"></span>
-                    <span th:if="${examen.reprobado}"
-                          style="background:#fef2f2; color:#dc2626; padding:2px 10px; border-radius:20px; font-size:0.8rem;">
-                        Reprobado — Repasar fin de semana
-                    </span>
-                    <span th:if="${!examen.reprobado}"
-                          style="background:#dcfce7; color:#16a34a; padding:2px 10px; border-radius:20px; font-size:0.8rem;">
-                        Aprobado ✅
+            <div class="examen-card" th:classappend="${examen.reprobado} ? 'examen-reprobado' : 'examen-aprobado'">
+
+                <!-- Header: fecha + badge -->
+                <div class="examen-header">
+                    <span class="examen-fecha" th:text="${examen.fecha}"></span>
+                    <span class="examen-badge"
+                          th:classappend="${examen.reprobado} ? 'badge-reprobado' : 'badge-aprobado'"
+                          th:text="${examen.reprobado} ? '❌ Reprobado' : '✅ Aprobado'">
                     </span>
                 </div>
-                <div style="font-size:0.85rem; color:#555;">
-                    <div th:if="${examen.matematicas}" th:text="'📐 ' + ${examen.matematicas}"></div>
-                    <div th:if="${examen.verbal}" th:text="'📖 ' + ${examen.verbal}"></div>
-                    <div th:if="${examen.erroresClave}" th:text="'❌ ' + ${examen.erroresClave}"></div>
-                    <div th:if="${examen.recomendacion}" th:text="'💡 ' + ${examen.recomendacion}"></div>
+
+                <!-- Calificación grande -->
+                <div class="examen-calificacion-row">
+                    <div class="examen-cal-numero"
+                         th:classappend="${examen.reprobado} ? 'cal-rojo' : 'cal-verde'"
+                         th:text="${examen.calificacion}">
+                    </div>
+                    <div class="examen-cal-label">calificación</div>
                 </div>
+
+                <!-- Barras matemáticas vs verbal -->
+                <div class="examen-barras">
+                    <div class="examen-barra-row">
+                        <span class="examen-barra-label">📐 Matemáticas</span>
+                        <div class="examen-barra-bg">
+                            <div class="examen-barra-fill barra-mat"
+                                 th:style="'width:' + ${examen.pctMat} + '%'"></div>
+                        </div>
+                        <span class="examen-barra-valor" th:text="${examen.matematicas}"></span>
+                    </div>
+                    <div class="examen-barra-row">
+                        <span class="examen-barra-label">📖 Verbal</span>
+                        <div class="examen-barra-bg">
+                            <div class="examen-barra-fill barra-ver"
+                                 th:style="'width:' + ${examen.pctVer} + '%'"></div>
+                        </div>
+                        <span class="examen-barra-valor" th:text="${examen.verbal}"></span>
+                    </div>
+                </div>
+
+                <!-- Errores y recomendación -->
+                <div class="examen-detalle" th:if="${examen.erroresClave}">
+                    <div class="examen-detalle-titulo">❌ Errores clave</div>
+                    <div class="examen-detalle-texto" th:text="${examen.erroresClave}"></div>
+                </div>
+                <div class="examen-detalle" th:if="${examen.recomendacion}">
+                    <div class="examen-detalle-titulo">💡 Recomendación</div>
+                    <div class="examen-detalle-texto" th:text="${examen.recomendacion}"></div>
+                </div>
+
             </div>
         </div>
     </div>
