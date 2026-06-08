@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Controller
@@ -204,6 +205,41 @@ public class ReporteController {
         }
 
         // Enriquecer exámenes con porcentajes para barras visuales
+        // Gráfica de comprensión semanal
+        List<Map<String, Object>> comprensionSemanal = new ArrayList<>();
+        List<LeccionCompletada> todasParaGrafica = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc();
+        Map<Integer, List<Integer>> nivelesPorSemana = new LinkedHashMap<>();
+        for (LeccionCompletada lec : todasParaGrafica) {
+            if (lec.getNumeroSemana() != null && lec.getNivelComprension() != null && lec.getNivelComprension() > 0) {
+                nivelesPorSemana.computeIfAbsent(lec.getNumeroSemana(), k -> new ArrayList<>()).add(lec.getNivelComprension());
+            }
+        }
+        // Ordenar por semana ascendente
+        new TreeMap<>(nivelesPorSemana).forEach((semana, niveles) -> {
+            double promedio = niveles.stream().mapToInt(Integer::intValue).average().orElse(0);
+            Map<String, Object> punto = new HashMap<>();
+            punto.put("semana", semana);
+            punto.put("promedio", Math.round(promedio * 10.0) / 10.0);
+            punto.put("lecciones", niveles.size());
+            comprensionSemanal.add(punto);
+        });
+        // Normalizar alturas de barras: min=20%, max=100%, escalado al rango real
+        if (!comprensionSemanal.isEmpty()) {
+            double minVal = comprensionSemanal.stream()
+                    .mapToDouble(p -> (Double) p.get("promedio")).min().orElse(0);
+            double maxVal = comprensionSemanal.stream()
+                    .mapToDouble(p -> (Double) p.get("promedio")).max().orElse(10);
+            double rango = maxVal - minVal;
+            for (Map<String, Object> punto : comprensionSemanal) {
+                double val = (Double) punto.get("promedio");
+                int altura = rango < 0.1
+                        ? 60  // todas iguales, altura media
+                        : (int) (20 + ((val - minVal) / rango) * 75);
+                punto.put("altura", altura);
+            }
+        }
+        model.addAttribute("comprensionSemanal", comprensionSemanal);
+
         List<ExamenResultado> examenesRaw = examenRepository.findAllByOrderByFechaDesc();
         List<Map<String, Object>> examenes = new ArrayList<>();
         for (ExamenResultado ex : examenesRaw) {

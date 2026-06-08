@@ -169,6 +169,42 @@
             padding: 3px 12px; border-radius: 20px; font-size: 0.75rem; margin-bottom: 12px;
         }
 
+
+        /* Gráfica comprensión */
+        .grafica-card {
+            background: white; border-radius: 12px; padding: 20px;
+            margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .grafica-titulo { font-weight: bold; color: #333; margin-bottom: 16px; font-size: 0.95rem; }
+        .grafica-container { overflow-x: auto; }
+        .grafica-barras {
+            display: flex; align-items: flex-end; gap: 16px;
+            height: 180px; padding-bottom: 8px; min-width: 200px;
+            padding-top: 24px;
+        }
+        .grafica-col {
+            display: flex; flex-direction: column; align-items: center;
+            flex: 1; min-width: 60px; height: 100%;
+        }
+        .grafica-valor { font-size: 0.85rem; font-weight: bold; color: #333; margin-bottom: 4px; }
+        .grafica-barra-wrap {
+            width: 100%; flex: 1; display: flex; align-items: flex-end;
+            background: #f8fafc; border-radius: 8px 8px 0 0; overflow: hidden;
+        }
+        .grafica-barra-inner {
+            width: 100%; border-radius: 6px 6px 0 0; transition: height 0.5s;
+            min-height: 4px;
+        }
+        .barra-alta   { background: #22c55e; }
+        .barra-media  { background: #f59e0b; }
+        .barra-baja   { background: #ef4444; }
+        .grafica-semana { font-size: 0.78rem; color: #555; margin-top: 6px; font-weight: 500; }
+        .grafica-lecciones { font-size: 0.72rem; color: #aaa; }
+        .grafica-referencia { margin-top: 12px; font-size: 0.75rem; color: #888; }
+        .ref-verde   { color: #22c55e; }
+        .ref-amarillo { color: #f59e0b; }
+        .ref-rojo    { color: #ef4444; }
+
         .border-rojo { border-left-color: #ef4444; }
         .border-verde { border-left-color: #22c55e; }
         /* Examen card */
@@ -274,6 +310,31 @@
         <div class="stat-card azul">
             <div class="label">Participación semana</div>
             <div class="value" th:text="${promedioParticipacion}">--</div>
+        </div>
+    </div>
+
+    <!-- Gráfica comprensión semanal -->
+    <div th:if="${comprensionSemanal != null and not #lists.isEmpty(comprensionSemanal)}" class="grafica-card">
+        <div class="grafica-titulo">📈 Evolución de Comprensión Semanal</div>
+        <div class="grafica-container">
+            <div class="grafica-barras">
+                <div th:each="punto : ${comprensionSemanal}" class="grafica-col">
+                    <div class="grafica-valor" th:text="${punto.promedio}"></div>
+                    <div class="grafica-barra-wrap">
+                        <div class="grafica-barra-inner"
+                             th:style="'height:' + ${punto.altura} + '%'"
+                             th:classappend="${punto.promedio >= 8} ? 'barra-alta' : (${punto.promedio >= 6} ? 'barra-media' : 'barra-baja')">
+                        </div>
+                    </div>
+                    <div class="grafica-semana" th:text="'Sem ' + ${punto.semana}"></div>
+                    <div class="grafica-lecciones" th:text="${punto.lecciones} + ' lec'"></div>
+                </div>
+            </div>
+            <div class="grafica-referencia">
+                <span class="ref-linea ref-verde">■</span> ≥8 excelente
+                <span class="ref-linea ref-amarillo" style="margin-left:12px">■</span> 6-7 bien
+                <span class="ref-linea ref-rojo" style="margin-left:12px">■</span> &lt;6 reforzar
+            </div>
         </div>
     </div>
 
