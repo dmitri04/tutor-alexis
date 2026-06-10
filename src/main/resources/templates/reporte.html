@@ -132,6 +132,33 @@
         }
         .sin-dato { color: #aaa; font-style: italic; font-size: 0.875rem; }
 
+
+
+        .ver-conversacion {
+            display: inline-block; font-size: 0.75rem; color: #e94560;
+            text-decoration: none; margin-top: 8px;
+            border: 1px solid #fecdd3; border-radius: 6px; padding: 3px 10px;
+            transition: all 0.2s;
+        }
+        .ver-conversacion:hover { background: #e94560; color: white; }
+
+        /* Semáforo de sesión */
+        .semaforo-row {
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 10px; padding: 8px 12px;
+            border-radius: 8px; font-size: 0.82rem;
+        }
+        .semaforo-verde    { background: #f0fdf4; border: 1px solid #bbf7d0; }
+        .semaforo-amarillo { background: #fefce8; border: 1px solid #fde68a; }
+        .semaforo-rojo     { background: #fef2f2; border: 1px solid #fecaca; }
+        .semaforo-gris     { background: #f8fafc; border: 1px solid #e2e8f0; }
+        .semaforo-veredicto { font-weight: bold; }
+        .semaforo-verde .semaforo-veredicto    { color: #16a34a; }
+        .semaforo-amarillo .semaforo-veredicto { color: #a16207; }
+        .semaforo-rojo .semaforo-veredicto     { color: #dc2626; }
+        .semaforo-gris .semaforo-veredicto     { color: #64748b; }
+        .semaforo-razon { color: #666; }
+
         /* Participación */
         .participacion-row {
             display: flex; align-items: center; gap: 10px;
@@ -275,7 +302,15 @@
         <h1>📊 Reporte de Alexis</h1>
         <p>Vista exclusiva para papá — actualizado en tiempo real</p>
     </div>
-    <a href="/" class="volver">← Volver al tutor</a>
+    <div style="display:flex; gap:10px; align-items:center;">
+        <span style="font-size:0.78rem; color:#888;"
+              th:text="'Internet: ' + ${estadoInternet}">Internet: desconocido</span>
+        <a href="/internet/bloquear"
+           style="background:#dc2626; color:white; text-decoration:none; padding:6px 14px; border-radius:8px; font-size:0.8rem;">🔒 Bloquear</a>
+        <a href="/internet/desbloquear"
+           style="background:#16a34a; color:white; text-decoration:none; padding:6px 14px; border-radius:8px; font-size:0.8rem;">🔓 Desbloquear</a>
+        <a href="/" class="volver">← Volver al tutor</a>
+    </div>
 </div>
 
 <div class="container">
@@ -488,6 +523,15 @@
     <div class="sesion-card" th:if="${sesionHoyFormateada != null}">
         <div class="fecha" th:text="${sesionHoyFormateada.fechaInicio} + ' — ' + ${sesionHoyFormateada.fechaFin}"></div>
 
+        <!-- Semáforo sesión de hoy -->
+        <div th:if="${sesionHoyFormateada.semaforo != null}"
+             class="semaforo-row"
+             th:classappend="'semaforo-' + ${sesionHoyFormateada.semaforo.color}">
+            <span th:text="${sesionHoyFormateada.semaforo.icono}"></span>
+            <span class="semaforo-veredicto" th:text="${sesionHoyFormateada.semaforo.veredicto}"></span>
+            <span class="semaforo-razon" th:text="'— ' + ${sesionHoyFormateada.semaforo.razon}"></span>
+        </div>
+
         <!-- Participación sesión de hoy -->
         <div class="participacion-row" th:if="${sesionHoyFormateada.participacion != null}">
             <span class="badge-participacion"
@@ -502,6 +546,9 @@
 
         <pre th:if="${sesionHoyFormateada.reporte != null}" th:text="${sesionHoyFormateada.reporte}"></pre>
         <p class="sin-dato" th:if="${sesionHoyFormateada.reporte == null}">Sesión en curso o sin reporte aún.</p>
+        <a class="ver-conversacion" th:if="${sesionHoyFormateada.id != null}"
+           th:href="'/sesion/' + ${sesionHoyFormateada.id} + '/conversacion'"
+           target="_blank">💬 Ver conversación completa</a>
     </div>
     <p class="sin-dato" th:if="${sesionHoyFormateada == null}">No hubo sesión hoy.</p>
 
@@ -510,6 +557,15 @@
     <div th:each="sesion : ${sesionesFormateadas}">
         <div class="sesion-card">
             <div class="fecha" th:text="${sesion.fechaInicio} + ' — ' + ${sesion.fechaFin}"></div>
+
+            <!-- Semáforo por sesión -->
+            <div th:if="${sesion.semaforo != null}"
+                 class="semaforo-row"
+                 th:classappend="'semaforo-' + ${sesion.semaforo.color}">
+                <span th:text="${sesion.semaforo.icono}"></span>
+                <span class="semaforo-veredicto" th:text="${sesion.semaforo.veredicto}"></span>
+                <span class="semaforo-razon" th:text="'— ' + ${sesion.semaforo.razon}"></span>
+            </div>
 
             <!-- Participación por sesión -->
             <div class="participacion-row" th:if="${sesion.participacion != null}">
@@ -525,6 +581,9 @@
 
             <pre th:if="${sesion.reporte != null}" th:text="${sesion.reporte}"></pre>
             <p class="sin-dato" th:if="${sesion.reporte == null}">Sin reporte en esta sesión.</p>
+            <a class="ver-conversacion" th:if="${sesion.id != null}"
+               th:href="'/sesion/' + ${sesion.id} + '/conversacion'"
+               target="_blank">💬 Ver conversación completa</a>
         </div>
     </div>
 

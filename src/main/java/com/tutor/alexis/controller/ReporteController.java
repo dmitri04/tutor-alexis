@@ -29,6 +29,7 @@ public class ReporteController {
     @Autowired private LeccionCompletadaRepository leccionRepository;
     @Autowired private ExamenResultadoRepository examenRepository;
     @Autowired private MensajeRepository mensajeRepository;
+    @Autowired private com.tutor.alexis.service.InternetControlService internetControlService;
 
     @GetMapping("/reporte")
     public String reporte(Model model) {
@@ -42,12 +43,11 @@ public class ReporteController {
 
         long diasRestantes = ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.of(2026, 8, 21));
 
-        // Lecciones completadas hoy
-        long leccionesHoy = sesionRepository
-                .findByFechaInicioAfterOrderByFechaInicioDesc(
-                        LocalDateTime.now().withHour(0).withMinute(0))
+        // Lecciones completadas hoy — solo cuentan las aprobadas (nivel >= 7)
+        long leccionesHoy = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
                 .stream()
-                .filter(s -> s.getReporte() != null)
+                .filter(l -> l.getFecha() != null && l.getFecha().equals(LocalDate.now()))
+                .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
                 .count();
 
         // Racha de días consecutivos
@@ -168,6 +168,7 @@ public class ReporteController {
 
         for (Sesion s : sesiones) {
             Map<String, Object> sesionMap = new HashMap<>();
+            sesionMap.put("id", s.getId());
             sesionMap.put("fechaInicio", s.getFechaInicio().format(fmt));
             sesionMap.put("fechaFin", s.getFechaFin() != null ? s.getFechaFin().format(fmt) : "En curso");
             sesionMap.put("reporte", s.getReporte());
@@ -176,6 +177,9 @@ public class ReporteController {
             Map<String, Object> participacion = calcularParticipacion(s.getId());
             sesionMap.put("participacion", participacion);
             scoresParticipacion.add((Integer) participacion.get("score"));
+
+            // Semáforo de sesión
+            sesionMap.put("semaforo", calcularSemaforo(s, participacion));
 
             sesionesFormateadas.add(sesionMap);
         }
@@ -195,10 +199,13 @@ public class ReporteController {
         if (sesionHoy.isPresent()) {
             Sesion s = sesionHoy.get();
             Map<String, Object> hoyMap = new HashMap<>();
+            hoyMap.put("id", s.getId());
             hoyMap.put("fechaInicio", s.getFechaInicio().format(fmt));
             hoyMap.put("fechaFin", s.getFechaFin() != null ? s.getFechaFin().format(fmt) : "En curso");
             hoyMap.put("reporte", s.getReporte());
-            hoyMap.put("participacion", calcularParticipacion(s.getId()));
+            Map<String, Object> partHoy = calcularParticipacion(s.getId());
+            hoyMap.put("participacion", partHoy);
+            hoyMap.put("semaforo", calcularSemaforo(s, partHoy));
             model.addAttribute("sesionHoyFormateada", hoyMap);
         } else {
             model.addAttribute("sesionHoyFormateada", null);
@@ -257,8 +264,79 @@ public class ReporteController {
             examenes.add(exMap);
         }
         model.addAttribute("examenes", examenes);
+        model.addAttribute("estadoInternet", internetControlService.getUltimoEstado());
 
         return "reporte";
+    }
+
+    /**
+     * Semáforo de sesión: veredicto rápido combinando participación,
+     * comprensión, duración y reporte.
+     * verde = todo bien | amarillo = revisar | rojo = hablar con Alexis
+     */
+    private Map<String, Object> calcularSemaforo(Sesion s, Map<String, Object> participacion) {
+        Map<String, Object> semaforo = new HashMap<>();
+
+        // Sesión en curso — sin veredicto aún
+        if (s.getFechaFin() == null) {
+            semaforo.put("color", "gris");
+            semaforo.put("icono", "⏳");
+            semaforo.put("veredicto", "En curso");
+            semaforo.put("razon", "Sesión activa, veredicto al cerrar");
+            return semaforo;
+        }
+
+        int respuestas = (int) participacion.getOrDefault("respuestas", 0);
+        long duracionMin = java.time.Duration.between(s.getFechaInicio(), s.getFechaFin()).toMinutes();
+        int nivel = extraerNivel(s.getReporte());
+        boolean tieneReporte = s.getReporte() != null;
+
+        List<String> alertas = new ArrayList<>();
+
+        // Evaluaciones
+        boolean participacionBaja = respuestas < 5;
+        boolean comprensionBaja = tieneReporte && nivel > 0 && nivel <= 6;
+        boolean sinReporte = !tieneReporte;
+        boolean sesionMuyCorta = duracionMin < 10;
+        boolean sesionCortaConBuenNivel = duracionMin < 15 && nivel >= 8;
+
+        if (sinReporte && participacionBaja) {
+            // Se conectó y no hizo nada
+            semaforo.put("color", "rojo");
+            semaforo.put("icono", "🔴");
+            semaforo.put("veredicto", "Hablar con Alexis");
+            semaforo.put("razon", "Se conectó pero no trabajó — " + respuestas + " respuestas, sin reporte");
+        } else if (comprensionBaja && participacionBaja) {
+            semaforo.put("color", "rojo");
+            semaforo.put("icono", "🔴");
+            semaforo.put("veredicto", "Hablar con Alexis");
+            semaforo.put("razon", "Baja participación y comprensión " + nivel + "/10");
+        } else if (comprensionBaja) {
+            semaforo.put("color", "amarillo");
+            semaforo.put("icono", "🟡");
+            semaforo.put("veredicto", "Revisar");
+            semaforo.put("razon", "Comprensión " + nivel + "/10 — el tutor programó refuerzo");
+        } else if (sesionMuyCorta && !sesionCortaConBuenNivel) {
+            semaforo.put("color", "amarillo");
+            semaforo.put("icono", "🟡");
+            semaforo.put("veredicto", "Revisar");
+            semaforo.put("razon", "Sesión de solo " + duracionMin + " min");
+        } else if (participacionBaja && tieneReporte) {
+            semaforo.put("color", "amarillo");
+            semaforo.put("icono", "🟡");
+            semaforo.put("veredicto", "Revisar");
+            semaforo.put("razon", "Pocas respuestas (" + respuestas + ") — verificar si el tema requería más interacción");
+        } else {
+            semaforo.put("color", "verde");
+            semaforo.put("icono", "🟢");
+            semaforo.put("veredicto", "Sesión sana");
+            String detalle = duracionMin < 15
+                    ? "Corta (" + duracionMin + " min) pero con nivel " + nivel + "/10 — cierre eficiente"
+                    : respuestas + " respuestas, nivel " + (nivel > 0 ? nivel + "/10" : "registrado") + ", duración normal";
+            semaforo.put("razon", detalle);
+        }
+
+        return semaforo;
     }
 
     /**
@@ -401,6 +479,75 @@ public class ReporteController {
                 DateTimeFormatter.ofPattern("dd 'de' MMMM 'de' yyyy", new Locale("es", "MX")));
         emailService.enviarResumenSemanal(resumen, semana);
         return "Resumen enviado ✅";
+    }
+
+    @GetMapping("/internet/bloquear")
+    @ResponseBody
+    public String bloquearInternet() {
+        boolean ok = internetControlService.bloquear();
+        return ok
+                ? "<h3>🔒 Internet bloqueado — modo estudio activado</h3><a href='/reporte'>&larr; Volver</a>"
+                : "<h3>❌ Error al bloquear — revisar conexión SSH</h3><a href='/reporte'>&larr; Volver</a>";
+    }
+
+    @GetMapping("/internet/desbloquear")
+    @ResponseBody
+    public String desbloquearInternet() {
+        boolean ok = internetControlService.desbloquear();
+        return ok
+                ? "<h3>🔓 Internet desbloqueado</h3><a href='/reporte'>&larr; Volver</a>"
+                : "<h3>❌ Error al desbloquear — revisar conexión SSH</h3><a href='/reporte'>&larr; Volver</a>";
+    }
+
+    @GetMapping("/sesion/{id}/conversacion")
+    @ResponseBody
+    public String verConversacion(@org.springframework.web.bind.annotation.PathVariable Long id) {
+        Optional<Sesion> sesionOpt = sesionRepository.findById(id);
+        if (sesionOpt.isEmpty()) return "<h3>Sesión no encontrada</h3>";
+
+        Sesion sesion = sesionOpt.get();
+        List<Mensaje> mensajes = mensajeRepository.findBySesionIdOrderByTimestamp(id);
+
+        DateTimeFormatter fmtHora = DateTimeFormatter.ofPattern("HH:mm:ss");
+        DateTimeFormatter fmtFecha = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html><html lang='es'><head><meta charset='UTF-8'>");
+        html.append("<title>Conversación — Sesión ").append(id).append("</title>");
+        html.append("<style>");
+        html.append("body{font-family:'Segoe UI',sans-serif;background:#f0f2f5;margin:0;padding:24px;}");
+        html.append(".container{max-width:900px;margin:0 auto;}");
+        html.append("h2{color:#333;font-size:1.1rem;}");
+        html.append(".meta{color:#888;font-size:0.85rem;margin-bottom:20px;}");
+        html.append(".volver{color:#e94560;text-decoration:none;font-size:0.85rem;display:inline-block;margin-bottom:16px;}");
+        html.append(".msg{max-width:75%;padding:12px 16px;border-radius:12px;margin-bottom:10px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word;font-size:0.9rem;}");
+        html.append(".user{background:#0f3460;color:#eee;margin-left:auto;border-bottom-right-radius:4px;}");
+        html.append(".assistant{background:white;color:#333;border-left:3px solid #e94560;border-bottom-left-radius:4px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}");
+        html.append(".hora{font-size:0.7rem;opacity:0.6;margin-top:4px;}");
+        html.append(".chat{display:flex;flex-direction:column;}");
+        html.append("</style></head><body><div class='container'>");
+        html.append("<a class='volver' href='/reporte'>&larr; Volver al reporte</a>");
+        html.append("<h2>Conversación completa — Sesión ").append(id).append("</h2>");
+        html.append("<div class='meta'>")
+                .append(sesion.getFechaInicio().format(fmtFecha))
+                .append(sesion.getFechaFin() != null ? " — " + sesion.getFechaFin().format(fmtFecha) : " — En curso")
+                .append(" · ").append(mensajes.size()).append(" mensajes</div>");
+        html.append("<div class='chat'>");
+
+        for (Mensaje m : mensajes) {
+            String clase = "user".equals(m.getRol()) ? "user" : "assistant";
+            String quien = "user".equals(m.getRol()) ? "Alexis" : "Tutor";
+            String contenido = m.getContenido() == null ? "" : m.getContenido()
+                    .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+            html.append("<div class='msg ").append(clase).append("'>");
+            html.append("<strong>").append(quien).append("</strong><br>");
+            html.append(contenido);
+            html.append("<div class='hora'>").append(m.getTimestamp().format(fmtHora)).append("</div>");
+            html.append("</div>");
+        }
+
+        html.append("</div></div></body></html>");
+        return html.toString();
     }
 
     @GetMapping("/init-objetivos-prueba")

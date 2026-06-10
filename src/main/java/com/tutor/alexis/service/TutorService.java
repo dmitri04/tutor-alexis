@@ -27,6 +27,7 @@ public class TutorService {
     @Autowired private ObjetivoEstudioRepository objetivoRepository;
     @Autowired private LeccionCompletadaRepository leccionRepository;
     @Autowired private ExamenResultadoRepository examenRepository;
+    @Autowired private InternetControlService internetControlService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private Long sesionActivaId = null;
@@ -140,6 +141,9 @@ public class TutorService {
             System.out.println("Nueva sesión iniciada: ID " + sesionActivaId);
         }
         inicioSesion = LocalDateTime.now();
+
+        // Modo estudio: bloquear internet en la laptop de Alexis (asíncrono)
+        internetControlService.bloquearAsync();
     }
 
     public Map<String, Object> cerrarSesion() {
@@ -184,11 +188,11 @@ public class TutorService {
     }
 
     private String obtenerSystemPrompt() {
-        long leccionesHoy = sesionRepository
-                .findByFechaInicioAfterOrderByFechaInicioDesc(
-                        LocalDateTime.now().withHour(0).withMinute(0))
+        // Cuenta solo lecciones aprobadas (nivel >= 7) — las de 6 o menos se repiten
+        long leccionesHoy = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
                 .stream()
-                .filter(s -> s.getReporte() != null && Boolean.TRUE.equals(s.getCierreVoluntario()))
+                .filter(l -> l.getFecha() != null && l.getFecha().equals(LocalDate.now()))
+                .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
                 .count();
 
         long diasEstudiados = sesionRepository.findAllByOrderByFechaInicioDesc()
