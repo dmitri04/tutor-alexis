@@ -1,7 +1,11 @@
 package com.tutor.alexis.service;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 import java.util.concurrent.TimeUnit;
 
@@ -48,6 +52,60 @@ public class InternetControlService {
 
     public String getUltimoEstado() {
         return ultimoEstado;
+    }
+
+    /**
+     * Health check al arrancar la app — verifica SSH y estado real del iptables.
+     */
+    @PostConstruct
+    public void verificarAlArranque() {
+        new Thread(() -> {
+            String estado = consultarEstadoReal();
+            switch (estado) {
+                case "bloqueado" -> {
+                    ultimoEstado = "bloqueado";
+                    System.out.println("[INTERNET] Conexion SSH OK con " + sshUser + "@" + sshHost
+                            + " - estado actual: BLOQUEADO (modo estudio activo)");
+                }
+                case "libre" -> {
+                    ultimoEstado = "libre";
+                    System.out.println("[INTERNET] Conexion SSH OK con " + sshUser + "@" + sshHost
+                            + " - estado actual: LIBRE (se bloqueara al iniciar sesion de estudio)");
+                }
+                default -> System.err.println("[INTERNET] SIN conexion SSH con " + sshUser + "@" + sshHost
+                        + " - el bloqueo automatico NO funcionara. Verificar laptop encendida y SSH key.");
+            }
+        }, "internet-healthcheck").start();
+    }
+
+    /**
+     * Consulta el estado real del firewall en la laptop (no el de memoria).
+     * @return "bloqueado", "libre" o "error"
+     */
+    public String consultarEstadoReal() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "ssh",
+                    "-o", "BatchMode=yes",
+                    "-o", "ConnectTimeout=5",
+                    "-o", "StrictHostKeyChecking=no",
+                    sshUser + "@" + sshHost,
+                    "sudo iptables -S INPUT | head -1"
+            );
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String salida;
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                salida = r.readLine();
+            }
+            boolean terminado = p.waitFor(10, TimeUnit.SECONDS);
+            if (!terminado || p.exitValue() != 0 || salida == null) return "error";
+            if (salida.contains("DROP")) return "bloqueado";
+            if (salida.contains("ACCEPT")) return "libre";
+            return "error";
+        } catch (Exception e) {
+            return "error";
+        }
     }
 
     private boolean ejecutar(String comando) {
