@@ -190,6 +190,55 @@ public class TutorService {
         return resultado;
     }
 
+    /**
+     * Determina si toca evaluación: cada 6 sesiones válidas (nivel >= 7)
+     * desde el último examen registrado.
+     *
+     * Lógica:
+     * - Busca la fecha del último examen (REPORTE_EXAMEN en alguna sesión, o último ExamenResultado)
+     * - Cuenta sesiones válidas posteriores a esa fecha
+     * - Si son >= 6, toca examen
+     * - Si nunca ha habido examen, cuenta todas las sesiones válidas
+     *
+     * El examen NO se dispara si la sesión actual ya es un examen en curso
+     * (evita que se repita dentro de la misma sesión).
+     */
+    private boolean tocaExamen() {
+        // Si ya hay una sesión activa que es examen, no volver a disparar
+        if (sesionActivaId != null) {
+            Optional<Sesion> actual = sesionRepository.findById(sesionActivaId);
+            if (actual.isPresent() && actual.get().getReporte() != null
+                    && actual.get().getReporte().contains("REPORTE_EXAMEN")) {
+                return false;
+            }
+        }
+
+        // Fecha del último examen aplicado
+        LocalDateTime fechaUltimoExamen = null;
+        List<ExamenResultado> examenes = examenRepository.findAll();
+        if (!examenes.isEmpty()) {
+            // El más reciente por fecha
+            fechaUltimoExamen = examenes.stream()
+                    .filter(e -> e.getFecha() != null)
+                    .map(e -> e.getFecha().atStartOfDay())
+                    .max(LocalDateTime::compareTo)
+                    .orElse(null);
+        }
+
+        // Contar sesiones válidas (con REPORTE_SESION y nivel >= 7) posteriores al último examen
+        final LocalDateTime corte = fechaUltimoExamen;
+        long sesionesValidasDesdeExamen = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
+                .stream()
+                .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
+                .filter(l -> {
+                    if (corte == null) return true; // nunca ha habido examen
+                    return l.getFecha() != null && !l.getFecha().isBefore(corte.toLocalDate());
+                })
+                .count();
+
+        return sesionesValidasDesdeExamen >= 6;
+    }
+
     private String obtenerSystemPrompt() {
         // Cuenta solo lecciones aprobadas (nivel >= 7) — las de 6 o menos se repiten
         long leccionesHoy = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
@@ -205,6 +254,22 @@ public class TutorService {
                 .count();
 
         StringBuilder contextoHoy = new StringBuilder();
+
+        // ===== DETECCIÓN DE EXAMEN AUTOMÁTICO =====
+        // Cada 6 sesiones válidas (nivel >= 7) desde el último examen, toca evaluación.
+        // El examen es una sesión que cuenta pero NO se repite (genera REPORTE_EXAMEN).
+        if (tocaExamen()) {
+            contextoHoy.append("=== INSTRUCCIÓN PRIORITARIA: HOY TOCA EVALUACIÓN ===\n");
+            contextoHoy.append("Alexis ya completó 6 sesiones desde su última evaluación. ");
+            contextoHoy.append("Esta sesión es una EVALUACIÓN, no una lección normal. ");
+            contextoHoy.append("Salúdalo con naturalidad, dile que es momento de su evaluación periódica ");
+            contextoHoy.append("(para ver cómo va su pensamiento, sin presión), y arranca el modo evaluación: ");
+            contextoHoy.append("una pregunta corta a la vez, pidiendo el porqué después de cada respuesta, ");
+            contextoHoy.append("cubriendo razonamiento verbal y matemático. Evalúa el PROCESO de pensamiento. ");
+            contextoHoy.append("Al terminar genera el bloque REPORTE_EXAMEN_START/END. ");
+            contextoHoy.append("Esta instrucción tiene prioridad sobre cualquier regla de inicio normal.\n\n");
+        }
+
         contextoHoy.append("Sesiones validas completadas hoy: ").append(leccionesHoy).append(" de 6 (maximo del dia).\n");
         contextoHoy.append("Días estudiados en total: ").append(diasEstudiados).append(".\n");
 
