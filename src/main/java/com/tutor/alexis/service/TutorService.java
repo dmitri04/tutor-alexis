@@ -182,6 +182,9 @@ public class TutorService {
             sesionActivaId = null;
             historialActivo = new ArrayList<>();
             inicioSesion = null;
+
+            // Detener el re-bloqueo periódico (internet sigue bloqueado hasta desbloqueo manual)
+            internetControlService.detenerRebloqueoSesion();
         }
         resultado.put("status", "ok");
         return resultado;
@@ -202,7 +205,7 @@ public class TutorService {
                 .count();
 
         StringBuilder contextoHoy = new StringBuilder();
-        contextoHoy.append("Lecciones completadas hoy: ").append(leccionesHoy).append(" de 5.\n");
+        contextoHoy.append("Sesiones validas completadas hoy: ").append(leccionesHoy).append(" de 6 (maximo del dia).\n");
         contextoHoy.append("Días estudiados en total: ").append(diasEstudiados).append(".\n");
 
         // Inyectar última lección completada para dar continuidad entre sesiones

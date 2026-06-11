@@ -50,6 +50,62 @@ public class ReporteController {
                 .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
                 .count();
 
+        // ===== TRAZABILIDAD SEMANAL =====
+        // Meta: 6 sesiones validas/dia x 5 dias (lun-vie) = 30/semana
+        // Cuenta sesiones validas (nivel >= 7) de la semana actual (lun a dom)
+        LocalDate hoy = LocalDate.now();
+        LocalDate lunesSemana = hoy.with(java.time.DayOfWeek.MONDAY);
+        LocalDate domingoSemana = lunesSemana.plusDays(6);
+        int metaSemanal = 30;
+
+        long sesionesValidasSemana = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
+                .stream()
+                .filter(l -> l.getFecha() != null
+                        && !l.getFecha().isBefore(lunesSemana)
+                        && !l.getFecha().isAfter(domingoSemana))
+                .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
+                .count();
+
+        // Cuantos dias habiles (lun-vie) han pasado en la semana, incluyendo hoy
+        long diasHabilesTranscurridos = 0;
+        LocalDate d = lunesSemana;
+        while (!d.isAfter(hoy) && !d.isAfter(domingoSemana)) {
+            java.time.DayOfWeek dow = d.getDayOfWeek();
+            if (dow != java.time.DayOfWeek.SATURDAY && dow != java.time.DayOfWeek.SUNDAY) {
+                diasHabilesTranscurridos++;
+            }
+            d = d.plusDays(1);
+        }
+        long metaEsperadaHoy = Math.min(diasHabilesTranscurridos * 6, metaSemanal);
+        long deficit = metaEsperadaHoy - sesionesValidasSemana;
+
+        String estadoSemana;
+        String colorSemana;
+        if (sesionesValidasSemana >= metaSemanal) {
+            estadoSemana = "Semana completa";
+            colorSemana = "verde";
+        } else if (deficit <= 0) {
+            estadoSemana = "Al dia";
+            colorSemana = "verde";
+        } else if (deficit <= 6) {
+            estadoSemana = "Debe " + deficit + " sesion" + (deficit == 1 ? "" : "es");
+            colorSemana = "amarillo";
+        } else {
+            estadoSemana = "Debe " + deficit + " sesiones — recuperar";
+            colorSemana = "rojo";
+        }
+
+        Map<String, Object> trazabilidad = new HashMap<>();
+        trazabilidad.put("completadas", sesionesValidasSemana);
+        trazabilidad.put("meta", metaSemanal);
+        trazabilidad.put("esperadasHoy", metaEsperadaHoy);
+        trazabilidad.put("estado", estadoSemana);
+        trazabilidad.put("color", colorSemana);
+        trazabilidad.put("porcentaje", Math.min(100, Math.round(sesionesValidasSemana * 100.0 / metaSemanal)));
+        trazabilidad.put("lunesSemana", lunesSemana.format(DateTimeFormatter.ofPattern("dd MMM")));
+        trazabilidad.put("domingoSemana", domingoSemana.format(DateTimeFormatter.ofPattern("dd MMM")));
+        model.addAttribute("trazabilidad", trazabilidad);
+
         // Racha de días consecutivos
         List<Sesion> todasSesiones = sesionRepository.findAllByOrderByFechaInicioDesc();
         long racha = calcularRacha(todasSesiones);
@@ -77,7 +133,7 @@ public class ReporteController {
         // Construir fases dinámicas
         List<Map<String, Object>> fases = new ArrayList<>();
         int objetivosAtrasados = 0;
-        LocalDate hoy = LocalDate.now();
+        // 'hoy' ya fue declarada arriba en el bloque de trazabilidad
 
         List<ObjetivoEstudio> todosObjetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
         if (!todosObjetivos.isEmpty()) {

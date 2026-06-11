@@ -16,6 +16,47 @@
         .header p { color: #888; font-size: 0.85rem; margin-top: 4px; }
         .volver { color: #e94560; text-decoration: none; font-size: 0.85rem; }
 
+
+        /* Trazabilidad semanal */
+        .traza-card {
+            background: white; border-radius: 12px; padding: 20px 24px;
+            margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-left: 5px solid #ccc;
+        }
+        .traza-card.verde   { border-left-color: #16a34a; }
+        .traza-card.amarillo { border-left-color: #f59e0b; }
+        .traza-card.rojo    { border-left-color: #dc2626; }
+        .traza-top {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+        }
+        .traza-titulo { font-size: 1rem; font-weight: bold; color: #333; }
+        .traza-semana { font-size: 0.8rem; color: #888; }
+        .traza-estado {
+            font-size: 0.85rem; font-weight: bold; padding: 4px 12px;
+            border-radius: 20px;
+        }
+        .traza-estado.verde   { background: #f0fdf4; color: #16a34a; }
+        .traza-estado.amarillo { background: #fffbeb; color: #b45309; }
+        .traza-estado.rojo    { background: #fef2f2; color: #dc2626; }
+        .traza-barra-bg {
+            background: #f1f5f9; border-radius: 10px; height: 22px;
+            overflow: hidden; position: relative;
+        }
+        .traza-barra-fill {
+            height: 100%; border-radius: 10px; transition: width 0.5s;
+            display: flex; align-items: center; justify-content: flex-end;
+            padding-right: 8px; color: white; font-size: 0.72rem; font-weight: bold;
+        }
+        .traza-barra-fill.verde   { background: linear-gradient(90deg, #22c55e, #16a34a); }
+        .traza-barra-fill.amarillo { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+        .traza-barra-fill.rojo    { background: linear-gradient(90deg, #f87171, #dc2626); }
+        .traza-detalle {
+            display: flex; justify-content: space-between; margin-top: 10px;
+            font-size: 0.78rem; color: #666;
+        }
+        .traza-num { font-weight: bold; color: #333; }
+
         .container { max-width: 1100px; margin: 0 auto; padding: 24px 32px; }
 
         .stats-grid {
@@ -315,6 +356,27 @@
 
 <div class="container">
 
+    <!-- Trazabilidad semanal -->
+    <div th:if="${trazabilidad != null}" class="traza-card" th:classappend="${trazabilidad.color}">
+        <div class="traza-top">
+            <div>
+                <span class="traza-titulo">📅 Avance de la semana</span>
+                <span class="traza-semana" th:text="' (' + ${trazabilidad.lunesSemana} + ' — ' + ${trazabilidad.domingoSemana} + ')'"></span>
+            </div>
+            <span class="traza-estado" th:classappend="${trazabilidad.color}" th:text="${trazabilidad.estado}">Al día</span>
+        </div>
+        <div class="traza-barra-bg">
+            <div class="traza-barra-fill" th:classappend="${trazabilidad.color}"
+                 th:style="'width:' + ${trazabilidad.porcentaje} + '%'"
+                 th:text="${trazabilidad.completadas} + '/' + ${trazabilidad.meta}">0/30</div>
+        </div>
+        <div class="traza-detalle">
+            <span>Completadas: <span class="traza-num" th:text="${trazabilidad.completadas}">0</span> sesiones válidas</span>
+            <span>Esperadas hoy: <span class="traza-num" th:text="${trazabilidad.esperadasHoy}">0</span></span>
+            <span>Meta semanal: <span class="traza-num" th:text="${trazabilidad.meta}">30</span></span>
+        </div>
+    </div>
+
     <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card">
@@ -323,7 +385,7 @@
         </div>
         <div class="stat-card verde">
             <div class="label">Lecciones hoy</div>
-            <div class="value" th:text="${leccionesHoy} + '/5'">0/5</div>
+            <div class="value" th:text="${leccionesHoy} + '/6'">0/6</div>
         </div>
         <div class="stat-card">
             <div class="label">Diagnóstico</div>

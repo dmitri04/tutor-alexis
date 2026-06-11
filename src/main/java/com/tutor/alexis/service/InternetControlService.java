@@ -19,6 +19,9 @@ public class InternetControlService {
     private String sshHost;
 
     private volatile String ultimoEstado = "desconocido";
+    private volatile boolean sesionActiva = false;
+    private Thread hiloRebloqueo = null;
+    private static final int INTERVALO_REBLOQUEO_SEG = 30;
 
     public boolean bloquear() {
         boolean ok = ejecutar("sudo /usr/local/bin/block_internet.sh");
@@ -44,10 +47,47 @@ public class InternetControlService {
 
     /**
      * Bloqueo asíncrono — no retrasa la respuesta del chat.
-     * Se usa al iniciar sesión de estudio.
+     * Se usa al iniciar sesión de estudio. Inicia el re-bloqueo periódico.
      */
     public void bloquearAsync() {
-        new Thread(this::bloquear, "internet-block").start();
+        iniciarRebloqueoSesion();
+    }
+
+    /**
+     * Mientras la sesión esté activa, re-aplica el bloqueo cada 30s.
+     * Cierra el hueco de que Alexis reinicie la red para recuperar internet.
+     */
+    public synchronized void iniciarRebloqueoSesion() {
+        if (sesionActiva) return; // ya hay un hilo corriendo
+        sesionActiva = true;
+        hiloRebloqueo = new Thread(() -> {
+            // Primer bloqueo inmediato
+            bloquear();
+            // Re-bloqueo periódico mientras la sesión siga activa
+            while (sesionActiva) {
+                try {
+                    Thread.sleep(INTERVALO_REBLOQUEO_SEG * 1000L);
+                } catch (InterruptedException e) {
+                    break;
+                }
+                if (sesionActiva) {
+                    bloquear(); // idempotente — re-aplica las reglas
+                }
+            }
+        }, "internet-rebloqueo");
+        hiloRebloqueo.setDaemon(true);
+        hiloRebloqueo.start();
+    }
+
+    /**
+     * Detiene el re-bloqueo periódico. Se llama al cerrar sesión de estudio.
+     */
+    public synchronized void detenerRebloqueoSesion() {
+        sesionActiva = false;
+        if (hiloRebloqueo != null) {
+            hiloRebloqueo.interrupt();
+            hiloRebloqueo = null;
+        }
     }
 
     public String getUltimoEstado() {
