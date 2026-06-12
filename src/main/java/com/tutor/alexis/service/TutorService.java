@@ -255,6 +255,26 @@ public class TutorService {
 
         StringBuilder contextoHoy = new StringBuilder();
 
+        // ===== SEMANA ACTUAL DEL PLAN =====
+        // Busca el objetivo_estudio cuyo rango de fechas incluye hoy
+        // e inyecta sus temas en el contexto para que el tutor los siga.
+        LocalDate hoy = LocalDate.now();
+        objetivoRepository.findAllByOrderByNumeroSemanaAsc().stream()
+                .filter(o -> !hoy.isBefore(o.getFechaInicio()) && !hoy.isAfter(o.getFechaFin()))
+                .findFirst()
+                .ifPresentOrElse(semanaActual -> {
+                    contextoHoy.append("=== PLAN DE ESTA SEMANA ===\n");
+                    contextoHoy.append("Semana ").append(semanaActual.getNumeroSemana())
+                            .append(" — ").append(semanaActual.getNombre()).append("\n");
+                    contextoHoy.append("Fase: ").append(semanaActual.getFase()).append("\n");
+                    contextoHoy.append("Subtemas a trabajar esta semana:\n")
+                            .append(semanaActual.getSubtemas()).append("\n");
+                    contextoHoy.append("Propósito pedagógico: ")
+                            .append(semanaActual.getProposito()).append("\n");
+                    contextoHoy.append("=========================\n\n");
+                }, () -> contextoHoy.append(
+                        "AVISO: hoy está fuera del rango del plan (revisa fechas en objetivo_estudio).\n\n"));
+
         // ===== DETECCIÓN DE EXAMEN AUTOMÁTICO =====
         // Cada 6 sesiones válidas (nivel >= 7) desde el último examen, toca evaluación.
         // El examen es una sesión que cuenta pero NO se repite (genera REPORTE_EXAMEN).
