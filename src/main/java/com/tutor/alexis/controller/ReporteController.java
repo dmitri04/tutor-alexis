@@ -116,11 +116,19 @@ public class ReporteController {
                         todasSesiones.get(0).getFechaInicio(), LocalDateTime.now()) + " horas";
 
         // Tema actual — último reporte
-        String temaActual = sesiones.stream()
+        Optional<Sesion> ultimoReporte = sesiones.stream()
                 .filter(s -> s.getReporte() != null)
-                .findFirst()
+                .findFirst();
+        String temaActual = ultimoReporte
                 .map(s -> extraerTema(s.getReporte()))
                 .orElse("Sin sesiones aún");
+
+        // CAMBIO 1: "Qué sigue" — objetivo de la siguiente sesión, extraído del último reporte
+        String objetivoSiguiente = ultimoReporte
+                .map(s -> extraerObjetivoSiguiente(s.getReporte()))
+                .filter(o -> o != null && !o.isEmpty())
+                .orElse(null);
+        model.addAttribute("objetivoSiguiente", objetivoSiguiente);
 
         // Nivel de comprensión promedio esta semana
         double promedioComprension = sesiones.stream()
@@ -137,15 +145,45 @@ public class ReporteController {
 
         List<ObjetivoEstudio> todosObjetivos = objetivoRepository.findAllByOrderByNumeroSemanaAsc();
         if (!todosObjetivos.isEmpty()) {
+            // CAMBIO 2: el estado refleja PROGRESO REAL (lecciones registradas), no la fecha.
+            // Ya no se marca "atrasado" por fecha vencida — eso daba falsos atrasos
+            // cuando Alexis avanza a su propio ritmo. El padre quiere ver progreso, no calendario.
+            //
+            // Reglas:
+            //  - "completado": la semana ya tiene >= 1 leccion valida (nivel >= 7).
+            //    (el tutor decide cuantas sesiones necesita cada tema; basta con que haya
+            //     evidencia de trabajo dominado para considerarla en marcha/cerrada)
+            //  - "progreso": es la semana en curso por calendario (referencia de "donde deberia ir"),
+            //    o tiene lecciones pero ninguna valida aun.
+            //  - "pendiente": aun no le toca y no tiene lecciones.
+            //
+            // Para saber que semanas tienen trabajo, contamos lecciones validas por semana.
+            Map<Integer, Long> validasPorSemana = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
+                    .stream()
+                    .filter(l -> l.getNumeroSemana() != null && l.getNumeroSemana() > 0)
+                    .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
+                    .collect(Collectors.groupingBy(LeccionCompletada::getNumeroSemana, Collectors.counting()));
+
+            Map<Integer, Long> totalPorSemana = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
+                    .stream()
+                    .filter(l -> l.getNumeroSemana() != null && l.getNumeroSemana() > 0)
+                    .collect(Collectors.groupingBy(LeccionCompletada::getNumeroSemana, Collectors.counting()));
+
             for (ObjetivoEstudio obj : todosObjetivos) {
-                if (!"completado".equals(obj.getEstado())) {
-                    if (hoy.isAfter(obj.getFechaFin())) {
-                        obj.setEstado("atrasado");
-                    } else if (!hoy.isBefore(obj.getFechaInicio())) {
-                        obj.setEstado("progreso");
-                    }
-                    objetivoRepository.save(obj);
+                long validas = validasPorSemana.getOrDefault(obj.getNumeroSemana(), 0L);
+                long total = totalPorSemana.getOrDefault(obj.getNumeroSemana(), 0L);
+                boolean esSemanaEnCurso = !hoy.isBefore(obj.getFechaInicio()) && !hoy.isAfter(obj.getFechaFin());
+
+                String nuevoEstado;
+                if (validas > 0) {
+                    nuevoEstado = "completado";
+                } else if (esSemanaEnCurso || total > 0) {
+                    nuevoEstado = "progreso";
+                } else {
+                    nuevoEstado = "pendiente";
                 }
+                obj.setEstado(nuevoEstado);
+                objetivoRepository.save(obj);
             }
 
             Map<String, List<ObjetivoEstudio>> porFase = new LinkedHashMap<>();
@@ -157,18 +195,15 @@ public class ReporteController {
                 List<Map<String, Object>> objetivosUI = new ArrayList<>();
                 int completados = 0;
                 for (ObjetivoEstudio obj : entry.getValue()) {
-                    if ("atrasado".equals(obj.getEstado())) objetivosAtrasados++;
                     if ("completado".equals(obj.getEstado())) completados++;
                     String icono = switch (obj.getEstado()) {
                         case "completado" -> "✅";
                         case "progreso"   -> "🔄";
-                        case "atrasado"   -> "🔴";
                         default           -> "⏳";
                     };
                     String etiqueta = switch (obj.getEstado()) {
                         case "completado" -> "Completado";
                         case "progreso"   -> "En progreso";
-                        case "atrasado"   -> "Atrasado";
                         default           -> "Pendiente";
                     };
                     Map<String, Object> objUI = new HashMap<>();
@@ -273,7 +308,8 @@ public class ReporteController {
         List<LeccionCompletada> todasParaGrafica = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc();
         Map<Integer, List<Integer>> nivelesPorSemana = new LinkedHashMap<>();
         for (LeccionCompletada lec : todasParaGrafica) {
-            if (lec.getNumeroSemana() != null && lec.getNivelComprension() != null && lec.getNivelComprension() > 0) {
+            if (lec.getNumeroSemana() != null && lec.getNumeroSemana() > 0
+                    && lec.getNivelComprension() != null && lec.getNivelComprension() > 0) {
                 nivelesPorSemana.computeIfAbsent(lec.getNumeroSemana(), k -> new ArrayList<>()).add(lec.getNivelComprension());
             }
         }
@@ -496,6 +532,21 @@ public class ReporteController {
             }
         }
         return "Sin datos";
+    }
+
+    /**
+     * CAMBIO 1: extrae "Objetivo siguiente sesión:" del reporte para mostrar
+     * "qué sigue" destacado en el dashboard. Es lo que el tutor planeó para
+     * la próxima sesión — la visibilidad de "qué verá Alexis" que pediste.
+     */
+    private String extraerObjetivoSiguiente(String reporte) {
+        if (reporte == null) return null;
+        for (String linea : reporte.split("\n")) {
+            if (linea.startsWith("Objetivo siguiente sesión:")) {
+                return linea.replace("Objetivo siguiente sesión:", "").trim();
+            }
+        }
+        return null;
     }
 
     private int extraerNivel(String reporte) {

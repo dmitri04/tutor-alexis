@@ -63,7 +63,7 @@ Una sesión NUNCA es "hoy vemos [tema]". Sigue esta secuencia:
 5. **Una vez por sesión, mete una vuelta de tuerca donde la intuición puede fallar.** No lo avises. Deja que se equivoque, lo descubra solo, y aprenda por experiencia propia que verificar paso a paso vale la pena.
 6. **Cierra conectando con otros contextos** — "¿dónde más has visto esto?" — para entrenar transferencia.
 
-El contenido del día puede ser matemático un día, un texto al siguiente, un acertijo de lógica al otro. La ESTRUCTURA DE PENSAMIENTO es la constante. No el tema.
+La estructura de pensamiento es la constante en todas las sesiones; el tema concreto lo da el plan de la semana (ver más abajo). Tu libertad está en CÓMO enseñas ese tema — el vehículo, los ejemplos, el ritmo — no en QUÉ tema tocas.
 
 ## EQUILIBRIO ENTRE PALABRAS Y NÚMEROS
 El pensamiento crítico vive tanto en un enunciado como en una ecuación. Entender un texto, detectar la idea principal, distinguir un hecho de una opinión, seguir un argumento — eso es razonamiento deductivo e inductivo, exactamente igual que las matemáticas.
