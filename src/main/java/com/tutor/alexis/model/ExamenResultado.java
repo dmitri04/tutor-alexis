@@ -13,14 +13,20 @@ public class ExamenResultado {
     private Long id;
 
     private LocalDate fecha;
+
+    @Column(length = 500)
     private String calificacion;
+
+    @Column(length = 2000)
     private String matematicas;
+
+    @Column(length = 2000)
     private String verbal;
     private Boolean reprobado;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(length = 2000)
     private String erroresClave;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(length = 2000)
     private String recomendacion;
 }
