@@ -10578,3 +10578,36 @@ The object is already closed [90007-224]
 2026-06-11 19:31:44.119247-06:00 jdbc[23]: exception
 org.h2.jdbc.JdbcSQLNonTransientException: El objeto ya está cerrado
 The object is already closed [90007-224]
+2026-06-12 09:24:00.734280-06:00 jdbc[13]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Error de Sintaxis en sentencia SQL "[*]}\000d\000a\000d\000a-- ¿Cuántas lecciones válidas hay DESPUÉS del último examen?\000d\000aSELECT COUNT(*) FROM leccion_completada\000d\000aWHERE nivel_comprension >= 7"
+Syntax error in SQL statement "[*]}\000d\000a\000d\000a-- ¿Cuántas lecciones válidas hay DESPUÉS del último examen?\000d\000aSELECT COUNT(*) FROM leccion_completada\000d\000aWHERE nivel_comprension >= 7"; SQL statement:
+}
+
+-- ¿Cuántas lecciones válidas hay DESPUÉS del último examen?
+SELECT COUNT(*) FROM leccion_completada
+WHERE nivel_comprension >= 7 [42000-224]
+2026-06-12 09:24:09.030890-06:00 jdbc[13]: exception
+org.h2.jdbc.JdbcSQLSyntaxErrorException: Error de Sintaxis en sentencia SQL "[*]}\000d\000a\000d\000aSELECT COUNT(*) FROM leccion_completada\000d\000aWHERE nivel_comprension >= 7"
+Syntax error in SQL statement "[*]}\000d\000a\000d\000aSELECT COUNT(*) FROM leccion_completada\000d\000aWHERE nivel_comprension >= 7"; SQL statement:
+}
+
+SELECT COUNT(*) FROM leccion_completada
+WHERE nivel_comprension >= 7 [42000-224]
+2026-06-12 09:25:06.753560-06:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLNonTransientException: El objeto ya está cerrado
+The object is already closed [90007-224]
+2026-06-12 09:25:06.773429-06:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLNonTransientException: El objeto ya está cerrado
+The object is already closed [90007-224]
+2026-06-12 09:25:14.312380-06:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLNonTransientException: El objeto ya está cerrado
+The object is already closed [90007-224]
+2026-06-12 09:29:08.531667-06:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLNonTransientException: El objeto ya está cerrado
+The object is already closed [90007-224]
+2026-06-12 09:29:08.549824-06:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLNonTransientException: El objeto ya está cerrado
+The object is already closed [90007-224]
+2026-06-12 09:29:16.224094-06:00 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLNonTransientException: El objeto ya está cerrado
+The object is already closed [90007-224]

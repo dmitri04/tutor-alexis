@@ -232,7 +232,7 @@ public class TutorService {
                 .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
                 .filter(l -> {
                     if (corte == null) return true; // nunca ha habido examen
-                    return l.getFecha() != null && !l.getFecha().isBefore(corte.toLocalDate());
+                    return l.getFecha() != null && l.getFecha().isAfter(corte.toLocalDate());
                 })
                 .count();
 
