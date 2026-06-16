@@ -69,10 +69,10 @@ public class TutorService {
 
         String respuesta = claudeService.enviarConversacionCompleta(systemPrompt, historialRecortado);
 
-        // Detectar errores de conexión
-        if (respuesta.contains("Sin conexión") || respuesta.contains("Failed to resolve")) {
+        // Detectar errores de conexion
+        if (respuesta.contains("Sin conexion") || respuesta.contains("Failed to resolve")) {
             erroresConsecutivos++;
-            System.err.println("🚨 ERROR CONEXIÓN #" + erroresConsecutivos + " - Alexis no puede estudiar");
+            System.err.println("ERROR CONEXION #" + erroresConsecutivos + " - Alexis no puede estudiar");
         } else {
             erroresConsecutivos = 0;
         }
@@ -80,7 +80,7 @@ public class TutorService {
         guardarMensaje(sesionActivaId, "assistant", respuesta);
         historialActivo.add(Map.of("role", "assistant", "content", respuesta));
 
-        // Persistir historial en BD después de cada mensaje
+        // Persistir historial en BD despues de cada mensaje
         persistirHistorial();
 
         procesarBloquesDiagnostico(respuesta);
@@ -107,7 +107,11 @@ public class TutorService {
     }
 
     private void iniciarNuevaSesion() {
-        // Buscar sesión activa sin cerrar del día
+        // Barrida de sesiones fantasma antes de empezar (Bug 1):
+        // limpia arranques vacios de dias anteriores para que no se acumulen.
+        limpiarSesionesFantasma();
+
+        // Buscar sesion activa sin cerrar del dia
         List<Sesion> sesionesHoy = sesionRepository
                 .findByFechaInicioAfterOrderByFechaInicioDesc(
                         LocalDateTime.now().withHour(0).withMinute(0));
@@ -120,13 +124,13 @@ public class TutorService {
                 .orElse(null);
 
         if (sesionSinCerrar != null) {
-            // Recuperar sesión existente
+            // Recuperar sesion existente
             sesionActivaId = sesionSinCerrar.getId();
             try {
                 historialActivo = objectMapper.readValue(
                         sesionSinCerrar.getHistorialJson(),
                         new TypeReference<List<Map<String, Object>>>(){});
-                System.out.println("Sesión recuperada: ID " + sesionActivaId +
+                System.out.println("Sesion recuperada: ID " + sesionActivaId +
                         " con " + historialActivo.size() + " mensajes");
             } catch (Exception e) {
                 System.err.println("Error recuperando historial: " + e.getMessage());
@@ -138,12 +142,59 @@ public class TutorService {
             sesion = sesionRepository.save(sesion);
             sesionActivaId = sesion.getId();
             historialActivo = new ArrayList<>();
-            System.out.println("Nueva sesión iniciada: ID " + sesionActivaId);
+            System.out.println("Nueva sesion iniciada: ID " + sesionActivaId);
         }
         inicioSesion = LocalDateTime.now();
 
-        // Modo estudio: bloquear internet en la laptop de Alexis (asíncrono)
+        // Modo estudio: bloquear internet en la laptop de Alexis (asincrono)
         internetControlService.bloquearAsync();
+    }
+
+    /**
+     * Borra sesiones fantasma: arranques vacios que quedan cuando alguien abre
+     * el chat y se va sin trabajar, o cuando se reinicia la app. Una sesion es
+     * fantasma si: no tiene reporte, no tiene historial activo, y tiene 2 o menos
+     * mensajes (un "hola" y una respuesta, sin trabajo real).
+     *
+     * SEGURIDAD: nunca borra
+     *   - la sesion activa actual (sesionActivaId)
+     *   - sesiones de HOY (podrian estar en uso)
+     *   - sesiones con reporte (trabajo registrado)
+     *   - sesiones con 3+ mensajes (trabajo real aunque no haya reporte)
+     * Asi jamas se pierde una sesion con contenido de Alexis.
+     */
+    private void limpiarSesionesFantasma() {
+        try {
+            LocalDate hoy = LocalDate.now();
+            List<Sesion> todas = sesionRepository.findAllByOrderByFechaInicioDesc();
+            int borradas = 0;
+            for (Sesion s : todas) {
+                // No tocar la sesion activa
+                if (sesionActivaId != null && sesionActivaId.equals(s.getId())) continue;
+                // No tocar sesiones de hoy
+                if (s.getFechaInicio() != null && s.getFechaInicio().toLocalDate().equals(hoy)) continue;
+                // No tocar sesiones con reporte (trabajo registrado)
+                if (s.getReporte() != null) continue;
+                // No tocar sesiones con historial activo (sin cerrar bien)
+                if (s.getHistorialJson() != null && !s.getHistorialJson().isEmpty()
+                        && !s.getHistorialJson().equals("[]")) continue;
+                // Contar mensajes: 3 o mas = trabajo real, no se borra
+                long numMensajes = mensajeRepository.findBySesionIdOrderByTimestamp(s.getId()).size();
+                if (numMensajes >= 3) continue;
+
+                // Es fantasma: borrar sus mensajes (si hay) y la sesion
+                mensajeRepository.findBySesionIdOrderByTimestamp(s.getId())
+                        .forEach(mensajeRepository::delete);
+                sesionRepository.delete(s);
+                borradas++;
+            }
+            if (borradas > 0) {
+                System.out.println("Barrida: " + borradas + " sesion(es) fantasma eliminada(s)");
+            }
+        } catch (Exception e) {
+            // Si la barrida falla, no debe romper el inicio de sesion
+            System.err.println("Error en barrida de fantasmas (ignorado): " + e.getMessage());
+        }
     }
 
     public Map<String, Object> cerrarSesion() {
@@ -164,17 +215,17 @@ public class TutorService {
                         Thread.sleep(2000);
                         List<Map<String, Object>> historialConCierre = new ArrayList<>(historialActivo);
                         historialConCierre.add(Map.of("role", "user", "content",
-                                "La sesión terminó. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
+                                "La sesion termino. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
                         String reporteAuto = claudeService.enviarConversacionCompleta(
                                 obtenerSystemPrompt(), historialConCierre);
                         procesarBloqueReporteConId(reporteAuto, idParaCerrar);
                     } catch (Exception e) {
-                        System.err.println("Error generando reporte automático: " + e.getMessage());
+                        System.err.println("Error generando reporte automatico: " + e.getMessage());
                     }
                 }
 
                 sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal ->
-                        System.out.println("Sesión cerrada: " + idParaCerrar +
+                        System.out.println("Sesion cerrada: " + idParaCerrar +
                                 " - reporte: " + (sesionFinal.getReporte() != null ? "OK" : "FALTA"))
                 );
             });
@@ -183,7 +234,7 @@ public class TutorService {
             historialActivo = new ArrayList<>();
             inicioSesion = null;
 
-            // Detener el re-bloqueo periódico (internet sigue bloqueado hasta desbloqueo manual)
+            // Detener el re-bloqueo periodico (internet sigue bloqueado hasta desbloqueo manual)
             internetControlService.detenerRebloqueoSesion();
         }
         resultado.put("status", "ok");
@@ -191,20 +242,22 @@ public class TutorService {
     }
 
     /**
-     * Determina si toca evaluación: cada 6 sesiones válidas (nivel >= 7)
-     * desde el último examen registrado.
+     * Determina si toca evaluacion: cada 6 sesiones validas (nivel >= 7)
+     * desde el ultimo examen.
      *
-     * Lógica:
-     * - Busca la fecha del último examen (REPORTE_EXAMEN en alguna sesión, o último ExamenResultado)
-     * - Cuenta sesiones válidas posteriores a esa fecha
-     * - Si son >= 6, toca examen
-     * - Si nunca ha habido examen, cuenta todas las sesiones válidas
+     * BLINDAJE CONTRA LOOP DE EXAMENES:
+     * El "ultimo examen" se calcula como el MAXIMO entre dos fuentes:
+     *   (a) la fecha mas reciente en la tabla examen_resultado, y
+     *   (b) la fecha de la sesion mas reciente cuyo reporte contiene REPORTE_EXAMEN.
      *
-     * El examen NO se dispara si la sesión actual ya es un examen en curso
-     * (evita que se repita dentro de la misma sesión).
+     * Por que: si el guardado en examen_resultado falla (p. ej. choque de PK),
+     * la tabla queda desactualizada y el contador nunca avanza, disparando
+     * examen en cada sesion (loop). Pero la SESION que hizo el examen SI guarda
+     * su reporte con REPORTE_EXAMEN. Mirando ambas fuentes, un fallo de guardado
+     * ya no causa loop: la sesion delata que el examen ocurrio.
      */
     private boolean tocaExamen() {
-        // Si ya hay una sesión activa que es examen, no volver a disparar
+        // Si ya hay una sesion activa que es examen, no volver a disparar
         if (sesionActivaId != null) {
             Optional<Sesion> actual = sesionRepository.findById(sesionActivaId);
             if (actual.isPresent() && actual.get().getReporte() != null
@@ -213,26 +266,40 @@ public class TutorService {
             }
         }
 
-        // Fecha del último examen aplicado
-        LocalDateTime fechaUltimoExamen = null;
-        List<ExamenResultado> examenes = examenRepository.findAll();
-        if (!examenes.isEmpty()) {
-            // El más reciente por fecha
-            fechaUltimoExamen = examenes.stream()
-                    .filter(e -> e.getFecha() != null)
-                    .map(e -> e.getFecha().atStartOfDay())
-                    .max(LocalDateTime::compareTo)
-                    .orElse(null);
+        // (a) Fecha del ultimo examen en la tabla de resultados
+        LocalDate fechaExamenTabla = examenRepository.findAll().stream()
+                .map(ExamenResultado::getFecha)
+                .filter(Objects::nonNull)
+                .max(LocalDate::compareTo)
+                .orElse(null);
+
+        // (b) Fecha de la sesion mas reciente que contiene un REPORTE_EXAMEN
+        //     (esto cubre el caso de que el guardado en examen_resultado haya fallado)
+        LocalDate fechaExamenSesion = sesionRepository.findAllByOrderByFechaInicioDesc().stream()
+                .filter(s -> s.getReporte() != null && s.getReporte().contains("REPORTE_EXAMEN"))
+                .map(s -> s.getFechaInicio().toLocalDate())
+                .max(LocalDate::compareTo)
+                .orElse(null);
+
+        // El ultimo examen real es el mas reciente de las dos fuentes
+        LocalDate ultimoExamen = null;
+        if (fechaExamenTabla != null && fechaExamenSesion != null) {
+            ultimoExamen = fechaExamenTabla.isAfter(fechaExamenSesion) ? fechaExamenTabla : fechaExamenSesion;
+        } else if (fechaExamenTabla != null) {
+            ultimoExamen = fechaExamenTabla;
+        } else if (fechaExamenSesion != null) {
+            ultimoExamen = fechaExamenSesion;
         }
 
-        // Contar sesiones válidas (con REPORTE_SESION y nivel >= 7) posteriores al último examen
-        final LocalDateTime corte = fechaUltimoExamen;
+        // Contar lecciones validas (nivel >= 7) ESTRICTAMENTE posteriores al ultimo examen.
+        // isAfter (no isBefore-negado): las lecciones del mismo dia del examen no cuentan.
+        final LocalDate corte = ultimoExamen;
         long sesionesValidasDesdeExamen = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
                 .stream()
                 .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
                 .filter(l -> {
                     if (corte == null) return true; // nunca ha habido examen
-                    return l.getFecha() != null && l.getFecha().isAfter(corte.toLocalDate());
+                    return l.getFecha() != null && l.getFecha().isAfter(corte);
                 })
                 .count();
 
@@ -240,7 +307,7 @@ public class TutorService {
     }
 
     private String obtenerSystemPrompt() {
-        // Cuenta solo lecciones aprobadas (nivel >= 7) — las de 6 o menos se repiten
+        // Cuenta solo lecciones aprobadas (nivel >= 7) las de 6 o menos se repiten
         long leccionesHoy = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
                 .stream()
                 .filter(l -> l.getFecha() != null && l.getFecha().equals(LocalDate.now()))
@@ -265,43 +332,43 @@ public class TutorService {
                 .ifPresentOrElse(semanaActual -> {
                     contextoHoy.append("=== PLAN DE ESTA SEMANA ===\n");
                     contextoHoy.append("Semana ").append(semanaActual.getNumeroSemana())
-                            .append(" — ").append(semanaActual.getNombre()).append("\n");
+                            .append(" - ").append(semanaActual.getNombre()).append("\n");
                     contextoHoy.append("Fase: ").append(semanaActual.getFase()).append("\n");
                     contextoHoy.append("Subtemas a trabajar esta semana:\n")
                             .append(semanaActual.getSubtemas()).append("\n");
-                    contextoHoy.append("Propósito pedagógico: ")
+                    contextoHoy.append("Proposito pedagogico: ")
                             .append(semanaActual.getProposito()).append("\n");
                     contextoHoy.append("=========================\n\n");
                 }, () -> contextoHoy.append(
-                        "AVISO: hoy está fuera del rango del plan (revisa fechas en objetivo_estudio).\n\n"));
+                        "AVISO: hoy esta fuera del rango del plan (revisa fechas en objetivo_estudio).\n\n"));
 
-        // ===== DETECCIÓN DE EXAMEN AUTOMÁTICO =====
-        // Cada 6 sesiones válidas (nivel >= 7) desde el último examen, toca evaluación.
-        // El examen es una sesión que cuenta pero NO se repite (genera REPORTE_EXAMEN).
+        // ===== DETECCION DE EXAMEN AUTOMATICO =====
+        // Cada 6 sesiones validas (nivel >= 7) desde el ultimo examen, toca evaluacion.
+        // El examen es una sesion que cuenta pero NO se repite (genera REPORTE_EXAMEN).
         if (tocaExamen()) {
-            contextoHoy.append("=== INSTRUCCIÓN PRIORITARIA: HOY TOCA EVALUACIÓN ===\n");
-            contextoHoy.append("Alexis ya completó 6 sesiones desde su última evaluación. ");
-            contextoHoy.append("Esta sesión es una EVALUACIÓN, no una lección normal. ");
-            contextoHoy.append("Salúdalo con naturalidad, dile que es momento de su evaluación periódica ");
-            contextoHoy.append("(para ver cómo va su pensamiento, sin presión), y arranca el modo evaluación: ");
-            contextoHoy.append("una pregunta corta a la vez, pidiendo el porqué después de cada respuesta, ");
-            contextoHoy.append("cubriendo razonamiento verbal y matemático. Evalúa el PROCESO de pensamiento. ");
+            contextoHoy.append("=== INSTRUCCION PRIORITARIA: HOY TOCA EVALUACION ===\n");
+            contextoHoy.append("Alexis ya completo 6 sesiones desde su ultima evaluacion. ");
+            contextoHoy.append("Esta sesion es una EVALUACION, no una leccion normal. ");
+            contextoHoy.append("Saludalo con naturalidad, dile que es momento de su evaluacion periodica ");
+            contextoHoy.append("(para ver como va su pensamiento, sin presion), y arranca el modo evaluacion: ");
+            contextoHoy.append("una pregunta corta a la vez, pidiendo el porque despues de cada respuesta, ");
+            contextoHoy.append("cubriendo razonamiento verbal y matematico. Evalua el PROCESO de pensamiento. ");
             contextoHoy.append("Al terminar genera el bloque REPORTE_EXAMEN_START/END. ");
-            contextoHoy.append("Esta instrucción tiene prioridad sobre cualquier regla de inicio normal.\n\n");
+            contextoHoy.append("Esta instruccion tiene prioridad sobre cualquier regla de inicio normal.\n\n");
         }
 
         contextoHoy.append("Sesiones validas completadas hoy: ").append(leccionesHoy).append(" de 6 (maximo del dia).\n");
-        contextoHoy.append("Días estudiados en total: ").append(diasEstudiados).append(".\n");
+        contextoHoy.append("Dias estudiados en total: ").append(diasEstudiados).append(".\n");
 
-        // Inyectar última lección completada para dar continuidad entre sesiones
+        // Inyectar ultima leccion completada para dar continuidad entre sesiones
         List<LeccionCompletada> lecciones = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc();
         if (!lecciones.isEmpty()) {
             LeccionCompletada ultima = lecciones.get(0);
-            contextoHoy.append("Última lección completada: ")
+            contextoHoy.append("Ultima leccion completada: ")
                     .append(ultima.getTema() != null ? ultima.getTema() : "sin tema")
-                    .append(" — Nivel: ").append(ultima.getNivelComprension()).append("/10")
-                    .append(" — Logro: ").append(ultima.getLogro() != null ? ultima.getLogro() : "-")
-                    .append(" — Área a reforzar: ").append(ultima.getAreaReforzar() != null ? ultima.getAreaReforzar() : "-")
+                    .append(" - Nivel: ").append(ultima.getNivelComprension()).append("/10")
+                    .append(" - Logro: ").append(ultima.getLogro() != null ? ultima.getLogro() : "-")
+                    .append(" - Area a reforzar: ").append(ultima.getAreaReforzar() != null ? ultima.getAreaReforzar() : "-")
                     .append(".\n");
         }
 
@@ -401,7 +468,7 @@ public class TutorService {
             }
 
             if (leccion.getTema() == null || leccion.getTema().isEmpty()) {
-                System.err.println("Lección sin tema — no se guarda");
+                System.err.println("Leccion sin tema no se guarda");
                 return;
             }
             if (leccion.getNumeroSemana() == null) leccion.setNumeroSemana(0);
@@ -417,13 +484,18 @@ public class TutorService {
             }
 
             leccionRepository.save(leccion);
-            System.out.println("Lección guardada: semana " + leccion.getNumeroSemana() +
-                    " lección " + leccion.getNumeroLeccion());
+            System.out.println("Leccion guardada: semana " + leccion.getNumeroSemana() +
+                    " leccion " + leccion.getNumeroLeccion());
         } catch (Exception e) {
-            System.err.println("Error guardando lección: " + e.getMessage());
+            System.err.println("Error guardando leccion: " + e.getMessage());
         }
     }
 
+    /**
+     * Procesa el bloque REPORTE_EXAMEN. Guardado IDEMPOTENTE: un examen por dia.
+     * Si ya existe un examen con la fecha de hoy, lo ACTUALIZA en vez de crear
+     * uno nuevo (evita el choque de PK que antes dejaba el contador en loop).
+     */
     private void procesarBloqueExamen(String respuesta) {
         if (respuesta.contains("REPORTE_EXAMEN_START")) {
             String reporte = extraerBloque(respuesta, "REPORTE_EXAMEN_START", "REPORTE_EXAMEN_END");
@@ -431,9 +503,10 @@ public class TutorService {
             String calificacion = extraerCalificacion(reporte);
             emailService.enviarResultadoExamen(reporte, fecha, calificacion);
 
-            // Guardar examen en BD
             try {
-                ExamenResultado examen = new ExamenResultado();
+                // Idempotente: reusa el examen de hoy si ya existe, si no crea uno nuevo.
+                ExamenResultado examen = examenRepository.findFirstByFecha(LocalDate.now())
+                        .orElseGet(ExamenResultado::new);
                 examen.setFecha(LocalDate.now());
                 examen.setCalificacion(calificacion);
 
@@ -448,13 +521,16 @@ public class TutorService {
                     if (linea.startsWith("Recomendación:"))
                         examen.setRecomendacion(linea.replace("Recomendación:", "").trim());
                     if (linea.startsWith("Reprobado:"))
-                        examen.setReprobado(linea.contains("sí") || linea.contains("si"));
+                        examen.setReprobado(linea.contains("si"));
                 }
 
                 examenRepository.save(examen);
-                System.out.println("Examen guardado: " + calificacion);
+                System.out.println("Examen guardado/actualizado: " + calificacion + " (fecha " + LocalDate.now() + ")");
             } catch (Exception e) {
-                System.err.println("Error guardando examen: " + e.getMessage());
+                // Aunque el guardado falle, tocaExamen() ya no entra en loop:
+                // la sesion guardo su reporte con REPORTE_EXAMEN y eso cuenta como
+                // "examen realizado" para el calculo del ultimo examen.
+                System.err.println("Error guardando examen (no causa loop, la sesion lo registra): " + e.getMessage());
             }
         }
     }
