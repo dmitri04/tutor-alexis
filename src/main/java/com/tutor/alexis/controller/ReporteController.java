@@ -308,8 +308,7 @@ public class ReporteController {
         List<LeccionCompletada> todasParaGrafica = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc();
         Map<Integer, List<Integer>> nivelesPorSemana = new LinkedHashMap<>();
         for (LeccionCompletada lec : todasParaGrafica) {
-            if (lec.getNumeroSemana() != null && lec.getNumeroSemana() > 0
-                    && lec.getNivelComprension() != null && lec.getNivelComprension() > 0) {
+            if (lec.getNumeroSemana() != null && lec.getNivelComprension() != null && lec.getNivelComprension() > 0) {
                 nivelesPorSemana.computeIfAbsent(lec.getNumeroSemana(), k -> new ArrayList<>()).add(lec.getNivelComprension());
             }
         }
@@ -504,9 +503,14 @@ public class ReporteController {
     private int extraerPorcentajeBarra(String valor) {
         if (valor == null || valor.isEmpty()) return 0;
         try {
+            // Tomar lo que esta antes de "/" y quedarse solo con el numero
+            // (maneja decimales como "4.5/5" y texto extra como "4.5/5 — observacion")
             String parte = valor.split("/")[0].trim();
-            int num = Integer.parseInt(parte);
-            return Math.min(100, num * 20); // X/5 → porcentaje sobre 100
+            // Extraer solo digitos y punto decimal por si viene con espacios o simbolos
+            parte = parte.replaceAll("[^0-9.]", "");
+            if (parte.isEmpty()) return 0;
+            double num = Double.parseDouble(parte);
+            return (int) Math.min(100, Math.round(num * 20)); // X/5 -> porcentaje sobre 100
         } catch (Exception e) { return 0; }
     }
 
@@ -604,6 +608,79 @@ public class ReporteController {
         return ok
                 ? "<h3>🔓 Internet desbloqueado</h3><a href='/reporte'>&larr; Volver</a>"
                 : "<h3>❌ Error al desbloquear — revisar conexión SSH</h3><a href='/reporte'>&larr; Volver</a>";
+    }
+
+    /**
+     * Limpieza semi-automatica de sesiones, disparada manualmente por el papa.
+     * - Cierra sesiones colgadas CON trabajo (abiertas, sin reporte, 3+ mensajes):
+     *   les pone fecha_fin, conserva el trabajo.
+     * - Borra sesiones vacias (sin reporte, 2 o menos mensajes): elimina sesion y mensajes.
+     * NUNCA toca: sesiones de HOY, ni sesiones con reporte.
+     * Devuelve un resumen de lo que hizo.
+     */
+    @GetMapping("/limpiar-sesiones")
+    @ResponseBody
+    public String limpiarSesiones() {
+        LocalDate hoy = LocalDate.now();
+        int cerradas = 0;
+        int borradas = 0;
+        List<String> detalleCerradas = new ArrayList<>();
+        List<String> detalleBorradas = new ArrayList<>();
+
+        for (Sesion s : sesionRepository.findAllByOrderByFechaInicioDesc()) {
+            // Proteccion: nunca tocar sesiones de hoy (podrian estar en uso)
+            if (s.getFechaInicio() != null && s.getFechaInicio().toLocalDate().equals(hoy)) continue;
+            // Proteccion: nunca tocar sesiones con reporte (trabajo registrado)
+            if (s.getReporte() != null) continue;
+
+            long numMensajes = mensajeRepository.findBySesionIdOrderByTimestamp(s.getId()).size();
+
+            if (numMensajes >= 3) {
+                // Sesion colgada CON trabajo: cerrar conservando
+                if (s.getFechaFin() == null) {
+                    s.setFechaFin(LocalDateTime.now());
+                    s.setCierreVoluntario(true);
+                    s.setHistorialJson(null);
+                    sesionRepository.save(s);
+                    cerradas++;
+                    detalleCerradas.add("ID " + s.getId() + " (" + numMensajes + " msgs)");
+                }
+            } else {
+                // Sesion vacia: borrar
+                mensajeRepository.findBySesionIdOrderByTimestamp(s.getId())
+                        .forEach(mensajeRepository::delete);
+                sesionRepository.delete(s);
+                borradas++;
+                detalleBorradas.add("ID " + s.getId() + " (" + numMensajes + " msgs)");
+            }
+        }
+
+        StringBuilder html = new StringBuilder();
+        html.append("<html><head><meta charset='UTF-8'>");
+        html.append("<style>body{font-family:'Segoe UI',sans-serif;background:#f0f2f5;padding:40px;}");
+        html.append(".card{background:white;border-radius:12px;padding:24px;max-width:600px;margin:0 auto;");
+        html.append("box-shadow:0 2px 8px rgba(0,0,0,0.06);}");
+        html.append("h2{color:#16a34a;}li{margin:4px 0;color:#555;}");
+        html.append("a{color:#e94560;text-decoration:none;}</style></head><body><div class='card'>");
+        html.append("<h2>Limpieza completada</h2>");
+        html.append("<p><b>").append(cerradas).append("</b> sesion(es) colgada(s) cerrada(s) (con trabajo, conservadas).</p>");
+        if (!detalleCerradas.isEmpty()) {
+            html.append("<ul>");
+            for (String d : detalleCerradas) html.append("<li>").append(d).append("</li>");
+            html.append("</ul>");
+        }
+        html.append("<p><b>").append(borradas).append("</b> sesion(es) vacia(s) borrada(s).</p>");
+        if (!detalleBorradas.isEmpty()) {
+            html.append("<ul>");
+            for (String d : detalleBorradas) html.append("<li>").append(d).append("</li>");
+            html.append("</ul>");
+        }
+        if (cerradas == 0 && borradas == 0) {
+            html.append("<p style='color:#888;'>No habia nada que limpiar. Todo en orden.</p>");
+        }
+        html.append("<br><a href='/reporte'>&larr; Volver al reporte</a>");
+        html.append("</div></body></html>");
+        return html.toString();
     }
 
     @GetMapping("/sesion/{id}/conversacion")
