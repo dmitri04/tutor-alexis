@@ -336,6 +336,52 @@
         .examen-detalle-texto { font-size: 0.85rem; color: #666; line-height: 1.6; }
 
 
+
+        /* ===== Acordeones (details/summary) ===== */
+        details.fase summary,
+        details.examen-card summary {
+            cursor: pointer;
+            list-style: none; /* quita el triangulo nativo */
+            user-select: none;
+        }
+        details.fase summary::-webkit-details-marker,
+        details.examen-card summary::-webkit-details-marker {
+            display: none; /* Safari/Chrome: ocultar marcador nativo */
+        }
+        /* Flecha personalizada que rota al abrir */
+        .fase-flecha {
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 0.7rem;
+            margin-right: 4px;
+        }
+        details[open] > summary .fase-flecha {
+            transform: rotate(90deg);
+        }
+        /* La flecha de fase es blanca (header oscuro), la de examen gris */
+        details.fase summary .fase-flecha { color: #888; }
+        details.examen-card summary .fase-flecha { color: #aaa; }
+
+        /* Summary de examen: fila compacta con fecha + calificacion + badge */
+        .examen-summary {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 4px 0;
+        }
+        .examen-summary .examen-fecha { flex: 0 0 auto; }
+        .examen-summary-cal {
+            font-size: 1.4rem;
+            font-weight: bold;
+            margin-left: auto;
+        }
+        .examen-summary .examen-badge { flex: 0 0 auto; }
+
+        /* Espaciado interno cuando el examen esta abierto */
+        details.examen-card[open] .examen-barras { margin-top: 16px; }
+
+        /* Hover sutil en los summary */
+        details.examen-card summary:hover { opacity: 0.85; }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -466,11 +512,12 @@
     <div th:if="${fases != null and not #lists.isEmpty(fases)}">
         <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
         <div th:each="fase : ${fases}">
-            <div class="fase">
-                <div class="fase-header">
+            <details class="fase" th:attr="open=${fase.completados lt fase.total} ? 'open' : null">
+                <summary class="fase-header">
+                    <span class="fase-flecha">▶</span>
                     <span th:text="${fase.nombre}">Fase</span>
                     <span class="progreso-texto" th:text="${fase.completados} + '/' + ${fase.total} + ' completados'">0/0</span>
-                </div>
+                </summary>
                 <div class="progreso-bar-container">
                     <div class="progreso-bar-bg">
                         <div class="progreso-bar-fill" th:style="'width:' + ${fase.porcentaje} + '%'"></div>
@@ -520,33 +567,29 @@
                         </div>
                     </div>
                 </div>
-            </div>
+            </details>
         </div>
     </div>
 
     <!-- Exámenes -->
     <div th:if="${examenes != null and not #lists.isEmpty(examenes)}">
         <div class="section-title">📊 Historial de Exámenes</div>
-        <div th:each="examen : ${examenes}">
-            <div class="examen-card" th:classappend="${examen.reprobado} ? 'examen-reprobado' : 'examen-aprobado'">
+        <div th:each="examen, iterStat : ${examenes}">
+            <details class="examen-card" th:classappend="${examen.reprobado} ? 'examen-reprobado' : 'examen-aprobado'"
+                     th:attr="open=${iterStat.first} ? 'open' : null">
 
-                <!-- Header: fecha + badge -->
-                <div class="examen-header">
+                <!-- Summary: fecha + calificación + badge (siempre visible) -->
+                <summary class="examen-summary">
+                    <span class="fase-flecha">▶</span>
                     <span class="examen-fecha" th:text="${examen.fecha}"></span>
+                    <span class="examen-summary-cal"
+                          th:classappend="${examen.reprobado} ? 'cal-rojo' : 'cal-verde'"
+                          th:text="${examen.calificacion}"></span>
                     <span class="examen-badge"
                           th:classappend="${examen.reprobado} ? 'badge-reprobado' : 'badge-aprobado'"
                           th:text="${examen.reprobado} ? '❌ Reprobado' : '✅ Aprobado'">
                     </span>
-                </div>
-
-                <!-- Calificación grande -->
-                <div class="examen-calificacion-row">
-                    <div class="examen-cal-numero"
-                         th:classappend="${examen.reprobado} ? 'cal-rojo' : 'cal-verde'"
-                         th:text="${examen.calificacion}">
-                    </div>
-                    <div class="examen-cal-label">calificación</div>
-                </div>
+                </summary>
 
                 <!-- Barras matemáticas vs verbal -->
                 <div class="examen-barras">
@@ -578,7 +621,7 @@
                     <div class="examen-detalle-texto" th:text="${examen.recomendacion}"></div>
                 </div>
 
-            </div>
+            </details>
         </div>
     </div>
 

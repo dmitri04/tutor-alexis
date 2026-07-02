@@ -449,8 +449,18 @@ public class TutorService {
             for (String linea : reporte.split("\n")) {
                 linea = linea.trim();
                 if (linea.startsWith("Lección:")) {
-                    try { leccion.setNumeroLeccion(Integer.parseInt(
-                            linea.replace("Lección:", "").trim()));
+                    try {
+                        // Extraer el primer número de la línea, ignorando texto extra
+                        // como "2 de 6" → 2, o "Lección 3" → 3. Antes "2 de 6" tronaba
+                        // el parseInt y caía en 0.
+                        String resto = linea.replace("Lección:", "").trim();
+                        java.util.regex.Matcher m = java.util.regex.Pattern
+                                .compile("\\d+").matcher(resto);
+                        if (m.find()) {
+                            leccion.setNumeroLeccion(Integer.parseInt(m.group()));
+                        } else {
+                            leccion.setNumeroLeccion(0);
+                        }
                     } catch (Exception e) { leccion.setNumeroLeccion(0); }
                 }
                 if (linea.startsWith("Tema trabajado:"))

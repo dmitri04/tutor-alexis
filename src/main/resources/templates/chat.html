@@ -116,6 +116,25 @@
     let timerInterval = null;
     let sesionCerrada = false;
 
+    // Al cargar la pagina, sincroniza el timer con el tiempo REAL del servidor.
+    // Asi, si Alexis refresca o vuelve a entrar, el reloj no se reinicia a 0:00
+    // sino que continua desde el tiempo real de la sesion (que vive en el servidor).
+    async function sincronizarTiempoServidor() {
+        try {
+            const resp = await fetch('/estado');
+            const data = await resp.json();
+            if (data.sesionActiva && typeof data.tiempoSesion === 'number' && data.tiempoSesion > 0) {
+                segundosSesion = data.tiempoSesion * 60;
+                const min = Math.floor(segundosSesion / 60);
+                const seg = segundosSesion % 60;
+                document.getElementById('timer').textContent = min + ':' + String(seg).padStart(2, '0');
+            }
+        } catch (e) {
+            // Si falla, el timer arranca en 0 como antes — no es critico
+        }
+    }
+    sincronizarTiempoServidor();
+
     // --- Control de inactividad ---
     const MINUTOS_INACTIVIDAD = 10;
     let ultimaActividad = Date.now();
@@ -260,7 +279,7 @@
         btnEnviar.disabled = true;
         mostrarTyping();
         const formData = new FormData();
-        formData.append('tiempoMinutos', segundosSesion / 60 | 0);
+        // El tiempo lo calcula el servidor (fuente confiable). Ya no se envia desde aqui.
         formData.append('mensaje', texto || 'Analiza este ejercicio y ayúdame a resolverlo.');
         if (imagenSeleccionada) formData.append('imagen', imagenSeleccionada);
         limpiarImagen();

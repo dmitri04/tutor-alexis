@@ -27,11 +27,12 @@ public class ChatController {
     @ResponseBody
     public Map<String, Object> enviarMensaje(
             @RequestParam("mensaje") String mensaje,
-            @RequestParam(value = "imagen", required = false) MultipartFile imagen,
-            @RequestParam(value = "tiempoMinutos", defaultValue = "0") long tiempoMinutos) {
-
+            @RequestParam(value = "imagen", required = false) MultipartFile imagen) {
+        // Ya NO recibimos tiempoMinutos del frontend — lo calcula el servidor,
+        // que es la única fuente confiable y no se puede manipular ni desincronizar.
         try {
-            String mensajeConTiempo = "[Tiempo en sesión: " + tiempoMinutos + " min] " + mensaje;
+            long tiempoReal = tutorService.getTiempoSesionMinutos();
+            String mensajeConTiempo = "[Tiempo en sesión: " + tiempoReal + " min] " + mensaje;
             String respuesta;
             if (imagen != null && !imagen.isEmpty()) {
                 String base64 = Base64.getEncoder().encodeToString(imagen.getBytes());
