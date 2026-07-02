@@ -224,10 +224,36 @@ public class TutorService {
                     }
                 }
 
-                sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal ->
-                        System.out.println("Sesion cerrada: " + idParaCerrar +
-                                " - reporte: " + (sesionFinal.getReporte() != null ? "OK" : "FALTA"))
-                );
+                sesionRepository.findById(idParaCerrar).ifPresent(sesionFinal -> {
+                    // Duracion (reloj del servidor, confiable)
+                    String duracion = "?";
+                    if (sesionFinal.getFechaInicio() != null && sesionFinal.getFechaFin() != null) {
+                        long mins = java.time.Duration.between(
+                                sesionFinal.getFechaInicio(), sesionFinal.getFechaFin()).toMinutes();
+                        duracion = mins + " min";
+                    }
+                    // Calificacion: la saca del reporte. Funciona para sesion normal
+                    // ("Nivel de comprensión: X/10") y para examen ("Calificación: X/10").
+                    String calificacion = "s/n";
+                    String tipo = "sesion";
+                    String rep = sesionFinal.getReporte();
+                    if (rep != null) {
+                        boolean esExamen = rep.contains("REPORTE_EXAMEN") || rep.contains("Calificación:");
+                        String etiqueta = esExamen ? "Calificación:" : "Nivel de comprensión:";
+                        if (esExamen) tipo = "EXAMEN";
+                        for (String linea : rep.split("\n")) {
+                            if (linea.trim().startsWith(etiqueta)) {
+                                calificacion = linea.replace(etiqueta, "").trim();
+                                break;
+                            }
+                        }
+                    }
+                    System.out.println("Sesion cerrada: " + idParaCerrar +
+                            " - reporte: " + (rep != null ? "OK" : "FALTA") +
+                            " - tipo: " + tipo +
+                            " - duracion: " + duracion +
+                            " - nivel: " + calificacion);
+                });
             });
 
             sesionActivaId = null;
