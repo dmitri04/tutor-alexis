@@ -95,10 +95,23 @@ public class ClaudeService {
 
                 List<Map> content = (List<Map>) response.get("content");
                 if (content == null || content.isEmpty()) {
-                    System.err.println("Respuesta vacía de Claude.");
+                    System.err.println("Respuesta vacía de Claude. Body: " + response);
                     return "Error: respuesta vacía del tutor.";
                 }
-                return (String) content.get(0).get("text");
+                // Robusto ante modelos con bloques de razonamiento (p.ej. Sonnet 5):
+                // el texto puede NO ser el primer bloque. Se concatenan todos los
+                // bloques type="text" y se ignora el resto (thinking, tool_use...).
+                StringBuilder texto = new StringBuilder();
+                for (Map bloque : content) {
+                    if ("text".equals(bloque.get("type")) && bloque.get("text") != null) {
+                        texto.append(bloque.get("text"));
+                    }
+                }
+                if (texto.isEmpty()) {
+                    System.err.println("Respuesta sin bloques de texto. Body: " + response);
+                    return "Error: respuesta vacía del tutor.";
+                }
+                return texto.toString();
 
             } catch (WebClientResponseException e) {
                 if (e.getStatusCode().value() == 429) {

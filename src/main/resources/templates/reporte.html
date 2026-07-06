@@ -512,7 +512,7 @@
     <div th:if="${fases != null and not #lists.isEmpty(fases)}">
         <div class="section-title">📅 Plan de Estudios — Semáforo de Progreso</div>
         <div th:each="fase : ${fases}">
-            <details class="fase" th:attr="open=${fase.completados lt fase.total} ? 'open' : null">
+            <details class="fase">
                 <summary class="fase-header">
                     <span class="fase-flecha">▶</span>
                     <span th:text="${fase.nombre}">Fase</span>
@@ -574,9 +574,9 @@
     <!-- Exámenes -->
     <div th:if="${examenes != null and not #lists.isEmpty(examenes)}">
         <div class="section-title">📊 Historial de Exámenes</div>
-        <div th:each="examen, iterStat : ${examenes}">
-            <details class="examen-card" th:classappend="${examen.reprobado} ? 'examen-reprobado' : 'examen-aprobado'"
-                     th:attr="open=${iterStat.first} ? 'open' : null">
+        <!-- Ultimo examen (el mas reciente) siempre visible -->
+        <div th:each="examen, iterStat : ${examenes}" th:if="${iterStat.first}">
+            <details class="examen-card" th:classappend="${examen.reprobado} ? 'examen-reprobado' : 'examen-aprobado'">
 
                 <!-- Summary: fecha + calificación + badge (siempre visible) -->
                 <summary class="examen-summary">
@@ -623,6 +623,63 @@
 
             </details>
         </div>
+
+        <!-- Examenes anteriores agrupados en un solo acordeon -->
+        <details class="fase" th:if="${#lists.size(examenes) > 1}">
+            <summary class="fase-header">
+                <span class="fase-flecha">▶</span>
+                <span>📁 Exámenes anteriores</span>
+                <span class="progreso-texto" th:text="${#lists.size(examenes) - 1} + ' exámenes'">0</span>
+            </summary>
+            <div th:each="examen, iterStat : ${examenes}" th:if="${!iterStat.first}">
+                <details class="examen-card" th:classappend="${examen.reprobado} ? 'examen-reprobado' : 'examen-aprobado'">
+
+                    <!-- Summary: fecha + calificación + badge (siempre visible) -->
+                    <summary class="examen-summary">
+                        <span class="fase-flecha">▶</span>
+                        <span class="examen-fecha" th:text="${examen.fecha}"></span>
+                        <span class="examen-summary-cal"
+                              th:classappend="${examen.reprobado} ? 'cal-rojo' : 'cal-verde'"
+                              th:text="${examen.calificacion}"></span>
+                        <span class="examen-badge"
+                              th:classappend="${examen.reprobado} ? 'badge-reprobado' : 'badge-aprobado'"
+                              th:text="${examen.reprobado} ? '❌ Reprobado' : '✅ Aprobado'">
+                    </span>
+                    </summary>
+
+                    <!-- Barras matemáticas vs verbal -->
+                    <div class="examen-barras">
+                        <div class="examen-barra-row">
+                            <span class="examen-barra-label">📐 Matemáticas</span>
+                            <div class="examen-barra-bg">
+                                <div class="examen-barra-fill barra-mat"
+                                     th:style="'width:' + ${examen.pctMat} + '%'"></div>
+                            </div>
+                            <span class="examen-barra-valor" th:text="${examen.matematicas}"></span>
+                        </div>
+                        <div class="examen-barra-row">
+                            <span class="examen-barra-label">📖 Verbal</span>
+                            <div class="examen-barra-bg">
+                                <div class="examen-barra-fill barra-ver"
+                                     th:style="'width:' + ${examen.pctVer} + '%'"></div>
+                            </div>
+                            <span class="examen-barra-valor" th:text="${examen.verbal}"></span>
+                        </div>
+                    </div>
+
+                    <!-- Errores y recomendación -->
+                    <div class="examen-detalle" th:if="${examen.erroresClave}">
+                        <div class="examen-detalle-titulo">❌ Errores clave</div>
+                        <div class="examen-detalle-texto" th:text="${examen.erroresClave}"></div>
+                    </div>
+                    <div class="examen-detalle" th:if="${examen.recomendacion}">
+                        <div class="examen-detalle-titulo">💡 Recomendación</div>
+                        <div class="examen-detalle-texto" th:text="${examen.recomendacion}"></div>
+                    </div>
+
+                </details>
+            </div>
+        </details>
     </div>
 
     <!-- Perfil -->
