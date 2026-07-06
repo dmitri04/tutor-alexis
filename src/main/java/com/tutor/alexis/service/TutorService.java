@@ -73,13 +73,17 @@ public class TutorService {
         guardarMensaje(sesionActivaId, "user", mensajeUsuario);
         historialActivo.add(Map.of("role", "user", "content", contenidoMensaje));
 
-        String systemPrompt = obtenerSystemPrompt();
+        // PROMPT CACHING (mejora #2): el system va en dos partes. La estable
+        // (prompt base + perfil) se cachea en la API; el contexto del dia va
+        // aparte, despues del bloque cacheado, sin cache.
+        String systemEstable = obtenerSystemEstable();
+        String contextoHoy = obtenerContextoHoy();
 
         List<Map<String, Object>> historialRecortado = historialActivo.size() > 40
                 ? new ArrayList<>(historialActivo.subList(historialActivo.size() - 40, historialActivo.size()))
                 : historialActivo;
 
-        String respuesta = claudeService.enviarConversacionCompleta(systemPrompt, historialRecortado);
+        String respuesta = claudeService.enviarConversacionCompleta(systemEstable, contextoHoy, historialRecortado);
 
         // Detectar errores de conexion
         if (respuesta.contains("Sin conexion") || respuesta.contains("Failed to resolve")) {
@@ -154,7 +158,9 @@ public class TutorService {
             sesion = sesionRepository.save(sesion);
             sesionActivaId = sesion.getId();
             historialActivo = new ArrayList<>();
-            System.out.println("Nueva sesion iniciada: ID " + sesionActivaId);
+            System.out.println("Nueva sesion iniciada: ID " + sesionActivaId +
+                    " - inicio: " + sesion.getFechaInicio()
+                    .format(DateTimeFormatter.ofPattern("HH:mm")));
         }
         inicioSesion = LocalDateTime.now();
 
@@ -229,7 +235,7 @@ public class TutorService {
                         historialConCierre.add(Map.of("role", "user", "content",
                                 "La sesion termino. Genera el REPORTE_SESION_START con lo que trabajamos hoy."));
                         String reporteAuto = claudeService.enviarConversacionCompleta(
-                                obtenerSystemPrompt(), historialConCierre);
+                                obtenerSystemEstable(), obtenerContextoHoy(), historialConCierre);
                         procesarBloqueReporteConId(reporteAuto, idParaCerrar);
                     } catch (Exception e) {
                         System.err.println("Error generando reporte automatico: " + e.getMessage());
@@ -344,7 +350,30 @@ public class TutorService {
         return sesionesValidasDesdeExamen >= 6;
     }
 
-    private String obtenerSystemPrompt() {
+    /**
+     * Parte ESTABLE del system prompt: prompt base + perfil. Es identica en
+     * todas las llamadas del dia — es la que se cachea en la API (mejora #2,
+     * ver ClaudeService). Nota: getPromptBase() incluye la fecha de hoy, asi
+     * que el cache se renueva naturalmente cada dia.
+     */
+    private String obtenerSystemEstable() {
+        Optional<PerfilEstudiante> perfilOpt = perfilRepository.findFirstByOrderByIdAsc();
+        if (perfilOpt.isPresent() && perfilOpt.get().getDiagnosticoCompletado()) {
+            PerfilEstudiante perfil = perfilOpt.get();
+            if (perfil.getSystemPromptPersonalizado() != null) {
+                return perfil.getSystemPromptPersonalizado();
+            }
+            return systemPromptConfig.getPromptConPerfil(perfil.getPerfilCompleto());
+        }
+        return systemPromptConfig.getPromptBase();
+    }
+
+    /**
+     * Parte VARIABLE del system prompt: el contexto del dia (semana del plan,
+     * cobertura de subtemas, examen, conteos, ultima leccion). Cambia entre
+     * mensajes, por eso va fuera del bloque cacheado y DESPUES de el.
+     */
+    private String obtenerContextoHoy() {
         // Cuenta solo lecciones aprobadas (nivel >= 7) las de 6 o menos se repiten
         long leccionesHoy = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
                 .stream()
@@ -376,6 +405,31 @@ public class TutorService {
                             .append(semanaActual.getSubtemas()).append("\n");
                     contextoHoy.append("Proposito pedagogico: ")
                             .append(semanaActual.getProposito()).append("\n");
+
+                    // ===== COBERTURA DE SUBTEMAS (mejora #1) =====
+                    // El tutor no tiene memoria entre sesiones: sin esto solo ve la
+                    // ultima leccion y tiende a profundizar en lo mismo (sesgo
+                    // matematico detectado en semana 4). Se le muestra lo ya
+                    // trabajado en la semana y el PORQUE de ir a lo pendiente.
+                    List<LeccionCompletada> deLaSemana = leccionRepository
+                            .findAllByOrderByFechaDescNumeroLeccionDesc()
+                            .stream()
+                            .filter(l -> l.getNumeroSemana() != null
+                                    && l.getNumeroSemana().equals(semanaActual.getNumeroSemana()))
+                            .toList();
+                    if (!deLaSemana.isEmpty()) {
+                        contextoHoy.append("Temas ya trabajados esta semana:\n");
+                        deLaSemana.forEach(l -> contextoHoy.append("- ")
+                                .append(l.getTema() != null ? l.getTema() : "sin tema")
+                                .append(" (nivel ").append(l.getNivelComprension()).append("/10)\n"));
+                        contextoHoy.append("COBERTURA: compara esta lista con los subtemas de la semana. ")
+                                .append("Los subtemas pendientes — en especial los verbales (V) — son donde ")
+                                .append("el habito de Alexis esta menos consolidado: ahi su intuicion no tiene ")
+                                .append("numeros que la guien y articular el razonamiento al primer intento le ")
+                                .append("cuesta mas. Llevarlo a ese terreno vale mas que seguir profundizando ")
+                                .append("donde ya demostro dominio. No es cubrir por cubrir: es entrenar el ")
+                                .append("musculo donde esta mas verde, con la misma vara de exigencia.\n");
+                    }
                     contextoHoy.append("=========================\n\n");
                 }, () -> contextoHoy.append(
                         "AVISO: hoy esta fuera del rango del plan (revisa fechas en objetivo_estudio).\n\n"));
@@ -395,7 +449,7 @@ public class TutorService {
             contextoHoy.append("Esta instruccion tiene prioridad sobre cualquier regla de inicio normal.\n\n");
         }
 
-        // FIX: 6 sesiones es el MINIMO diario, no el maximo. Se inyecta ademas el
+        // 6 sesiones es el MINIMO diario, no el maximo. Se inyecta ademas el
         // avance semanal para que el tutor sepa si va atrasado y motive sesiones
         // extra de recuperacion en vez de mandarlo a descansar al llegar a 6.
         LocalDate inicioSemana = hoy.with(java.time.DayOfWeek.MONDAY);
@@ -427,15 +481,7 @@ public class TutorService {
                     .append(".\n");
         }
 
-        Optional<PerfilEstudiante> perfilOpt = perfilRepository.findFirstByOrderByIdAsc();
-        if (perfilOpt.isPresent() && perfilOpt.get().getDiagnosticoCompletado()) {
-            PerfilEstudiante perfil = perfilOpt.get();
-            if (perfil.getSystemPromptPersonalizado() != null) {
-                return contextoHoy + perfil.getSystemPromptPersonalizado();
-            }
-            return contextoHoy + systemPromptConfig.getPromptConPerfil(perfil.getPerfilCompleto());
-        }
-        return contextoHoy + systemPromptConfig.getPromptBase();
+        return contextoHoy.toString();
     }
 
     private void procesarBloquesDiagnostico(String respuesta) {
@@ -492,14 +538,21 @@ public class TutorService {
                 sesion.setReporte(reporte);
                 sesionRepository.save(sesion);
             });
-            guardarLeccionCompletada(reporte);
+            guardarLeccionCompletada(reporte, sesionActivaId);
         }
     }
 
-    private void guardarLeccionCompletada(String reporte) {
+    private void guardarLeccionCompletada(String reporte, Long sesionId) {
         try {
-            LeccionCompletada leccion = new LeccionCompletada();
+            // IDEMPOTENTE: si esta sesion ya genero leccion, se ACTUALIZA en vez
+            // de duplicar (el tutor puede emitir REPORTE_SESION mas de una vez).
+            // Mismo patron que el guardado de examenes (findFirstByFecha).
+            LeccionCompletada leccion = (sesionId != null)
+                    ? leccionRepository.findFirstBySesionId(sesionId).orElseGet(LeccionCompletada::new)
+                    : new LeccionCompletada();
             leccion.setFecha(LocalDate.now());
+            // Vinculo directo leccion -> sesion (mejora #3)
+            leccion.setSesionId(sesionId);
 
             for (String linea : reporte.split("\n")) {
                 linea = linea.trim();
@@ -522,8 +575,12 @@ public class TutorService {
                     leccion.setTema(linea.replace("Tema trabajado:", "").trim());
                 if (linea.startsWith("Nivel de comprensión:")) {
                     try {
+                        // Soporta decimales ("9.5/10" del examen): redondea.
+                        // Antes parseInt tronaba con "9.5" y la leccion caia a
+                        // nivel 0 -> no contaba como valida (bug del 6-jul).
                         String val = linea.replace("Nivel de comprensión:", "").trim();
-                        leccion.setNivelComprension(Integer.parseInt(val.split("/")[0].trim()));
+                        double nivel = Double.parseDouble(val.split("/")[0].trim());
+                        leccion.setNivelComprension((int) Math.round(nivel));
                     } catch (Exception e) { leccion.setNivelComprension(0); }
                 }
                 if (linea.startsWith("Logro del día:"))
@@ -550,7 +607,8 @@ public class TutorService {
 
             leccionRepository.save(leccion);
             System.out.println("Leccion guardada: semana " + leccion.getNumeroSemana() +
-                    " leccion " + leccion.getNumeroLeccion());
+                    " leccion " + leccion.getNumeroLeccion() +
+                    " (sesion " + sesionId + ")");
         } catch (Exception e) {
             System.err.println("Error guardando leccion: " + e.getMessage());
         }
@@ -634,7 +692,7 @@ public class TutorService {
                 sesion.setReporte(reporte);
                 sesionRepository.save(sesion);
             });
-            guardarLeccionCompletada(reporte);
+            guardarLeccionCompletada(reporte, sesionId);
         }
     }
 

@@ -24,16 +24,52 @@ public class ClaudeService {
             .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
             .build();
 
+    /**
+     * Version original (system como string plano, sin caching).
+     * Se mantiene por compatibilidad: delega a la version con caching
+     * poniendo todo el prompt como parte estable.
+     */
     public String enviarConversacionCompleta(String systemPrompt, List<Map<String, Object>> historial) {
+        return enviarConversacionCompleta(systemPrompt, null, historial);
+    }
+
+    /**
+     * PROMPT CACHING: el system se manda en dos bloques.
+     *   - systemEstable: prompt base + perfil (identico en cada llamada del dia)
+     *     -> marcado con cache_control, la API lo cachea y las llamadas
+     *        siguientes leen del cache a ~10% del costo de input.
+     *   - contextoVariable: datos del dia (sesiones hoy, semana del plan, etc.)
+     *     -> va DESPUES del bloque cacheado, sin cache (cambia entre mensajes).
+     * El cache dura 5 min y se refresca con cada hit, asi que dentro de una
+     * sesion activa practicamente todas las llamadas pegan en cache.
+     */
+    public String enviarConversacionCompleta(String systemEstable, String contextoVariable,
+                                             List<Map<String, Object>> historial) {
         int intentos = 0;
         int maxIntentos = 3;
+
+        // Bloques del system: el estable con cache_control, el variable sin.
+        List<Map<String, Object>> systemBlocks;
+        Map<String, Object> bloqueEstable = Map.of(
+                "type", "text",
+                "text", systemEstable,
+                "cache_control", Map.of("type", "ephemeral")
+        );
+        if (contextoVariable != null && !contextoVariable.isBlank()) {
+            systemBlocks = List.of(
+                    bloqueEstable,
+                    Map.of("type", "text", "text", contextoVariable)
+            );
+        } else {
+            systemBlocks = List.of(bloqueEstable);
+        }
 
         while (intentos < maxIntentos) {
             try {
                 Map<String, Object> body = Map.of(
                         "model", model,
                         "max_tokens", 4096,
-                        "system", systemPrompt,
+                        "system", systemBlocks,
                         "messages", historial
                 );
 
@@ -46,6 +82,16 @@ public class ClaudeService {
                         .retrieve()
                         .bodyToMono(Map.class)
                         .block();
+
+                // Log de uso de cache (visible en consola para verificar el ahorro)
+                Object usage = response.get("usage");
+                if (usage instanceof Map<?, ?> u) {
+                    Object creation = u.get("cache_creation_input_tokens");
+                    Object read = u.get("cache_read_input_tokens");
+                    if (creation != null || read != null) {
+                        System.out.println("[CACHE] escritos: " + creation + " | leidos: " + read);
+                    }
+                }
 
                 List<Map> content = (List<Map>) response.get("content");
                 if (content == null || content.isEmpty()) {

@@ -18,6 +18,13 @@ public class LeccionCompletada {
     private String tema;
     private Integer nivelComprension;
 
+    /**
+     * ID de la sesion que genero esta leccion. Hibernate crea la columna
+     * automaticamente (ddl-auto update). Lecciones anteriores a este campo
+     * quedan en null — decidido, igual que las "Leccion 0".
+     */
+    private Long sesionId;
+
     @Column(columnDefinition = "TEXT")
     private String logro;
 
