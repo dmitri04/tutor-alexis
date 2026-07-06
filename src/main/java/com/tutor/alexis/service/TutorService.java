@@ -40,6 +40,18 @@ public class TutorService {
     }
 
     public String procesarMensajeConImagen(String mensajeUsuario, String imagenBase64, String mediaType) {
+        // FIX: si la sesion activa quedo abierta de OTRO dia (app corriendo desde
+        // ayer sin reiniciar), cerrarla sin reporte y arrancar limpia. Evita que
+        // Alexis quede atrapado en la conversacion de ayer ("descansa, nos vemos
+        // manana") y que el [Tiempo en sesion] marque cientos de minutos.
+        if (sesionActivaId != null && inicioSesion != null
+                && !inicioSesion.toLocalDate().equals(LocalDate.now())) {
+            System.out.println("Sesion " + sesionActivaId
+                    + " venia de otro dia - cierre automatico");
+            historialActivo = new ArrayList<>(); // sin historial => no genera reporte rancio
+            cerrarSesion();
+        }
+
         if (sesionActivaId == null) {
             iniciarNuevaSesion();
         }
@@ -383,7 +395,24 @@ public class TutorService {
             contextoHoy.append("Esta instruccion tiene prioridad sobre cualquier regla de inicio normal.\n\n");
         }
 
-        contextoHoy.append("Sesiones validas completadas hoy: ").append(leccionesHoy).append(" de 6 (maximo del dia).\n");
+        // FIX: 6 sesiones es el MINIMO diario, no el maximo. Se inyecta ademas el
+        // avance semanal para que el tutor sepa si va atrasado y motive sesiones
+        // extra de recuperacion en vez de mandarlo a descansar al llegar a 6.
+        LocalDate inicioSemana = hoy.with(java.time.DayOfWeek.MONDAY);
+        long leccionesSemana = leccionRepository.findAllByOrderByFechaDescNumeroLeccionDesc()
+                .stream()
+                .filter(l -> l.getFecha() != null && !l.getFecha().isBefore(inicioSemana))
+                .filter(l -> l.getNivelComprension() != null && l.getNivelComprension() >= 7)
+                .count();
+        contextoHoy.append("Sesiones validas hoy: ").append(leccionesHoy)
+                .append(". Esta semana: ").append(leccionesSemana)
+                .append(" de 30 (meta semanal).\n");
+        contextoHoy.append("REGLA DE SESIONES: la meta diaria MINIMA es 6 sesiones validas. ")
+                .append("NO hay maximo. Si Alexis quiere seguir despues de 6, adelante - ")
+                .append("reconoce el esfuerzo y continua con la siguiente leccion. ")
+                .append("NUNCA lo mandes a descansar solo por completar 6, y menos si la ")
+                .append("semana va atrasada respecto a la meta de 30. ")
+                .append("Unica excepcion: fatiga real o caida clara de calidad - ahi si sugiere pausa.\n");
         contextoHoy.append("Dias estudiados en total: ").append(diasEstudiados).append(".\n");
 
         // Inyectar ultima leccion completada para dar continuidad entre sesiones

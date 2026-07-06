@@ -1,0 +1,22 @@
+# Build de Maven
+target/
+
+# IntelliJ
+.idea/
+*.iml
+*.iws
+out/
+
+# Logs
+*.log
+logs/
+
+# Base de datos H2 (datos de Alexis, no van al repo)
+data/
+*.db
+*.mv.db
+*.trace.db
+
+# OS
+.DS_Store
+Thumbs.db
